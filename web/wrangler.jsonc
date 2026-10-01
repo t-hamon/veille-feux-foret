@@ -1,0 +1,14 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  // Static site served by Cloudflare Workers static assets: no Worker script runs,
+  // requests are answered from the build in ./dist with the headers of
+  // ./dist/_headers (copied from public/_headers by Vite).
+  "name": "veille-feux-foret",
+  "compatibility_date": "2026-09-21",
+  "assets": {
+    "directory": "./dist",
+    // Unknown paths get a plain 404, as with any static host; no SPA fallback.
+    "not_found_handling": "none",
+  },
+  "send_metrics": false,
+}

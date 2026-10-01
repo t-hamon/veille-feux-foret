@@ -1,3 +1,1 @@
-10020	IGNORE	(Anti-clickjacking header: GitHub Pages cannot send custom headers and frame-ancestors is ignored in a meta tag. Documented in SECURITY.md.)
-10021	IGNORE	(X-Content-Type-Options: set by the hosting, not by the local preview server. Checked on the deployment in lot 1b.)
-10038	IGNORE	(CSP header not set: the policy is delivered by a meta tag, verified by the end-to-end tests.)
+10049	IGNORE	(Informational cache analysis: hashed assets are cached for a year as immutable, HTML and other files are revalidated on each visit. Set in web/public/_headers.)

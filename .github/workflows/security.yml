@@ -83,20 +83,21 @@ jobs:
           node-version: "24"
           cache: npm
           cache-dependency-path: web/package-lock.json
-      - name: Build and serve the local build
+      - name: Build and serve it with the Cloudflare runtime
         working-directory: web
         run: |
           npm ci
           npm run build
-          nohup npx vite preview --host 0.0.0.0 --port 4173 --strictPort > preview.log 2>&1 &
-          for _ in $(seq 1 30); do curl -sf http://127.0.0.1:4173/ > /dev/null && exit 0; sleep 1; done
-          cat preview.log
+          # wrangler serves dist with the headers of public/_headers, as in production.
+          nohup npx wrangler dev --ip 0.0.0.0 --port 8787 > wrangler.log 2>&1 &
+          for _ in $(seq 1 60); do curl -sf http://127.0.0.1:8787/ > /dev/null && exit 0; sleep 1; done
+          cat wrangler.log
           exit 1
       - name: ZAP baseline scan
         uses: zaproxy/action-baseline@de8ad967d3548d44ef623df22cf95c3b0baf8b25 # v0.15.0
         with:
           # Only the build served by this job is scanned, never a remote site.
-          target: "http://127.0.0.1:4173"
+          target: "http://127.0.0.1:8787"
           rules_file_name: ".zap/rules.tsv"
           allow_issue_writing: false
           fail_action: true

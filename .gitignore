@@ -28,3 +28,4 @@ web/preview.log
 .DS_Store
 .idea/
 .vscode/
+web/.wrangler/

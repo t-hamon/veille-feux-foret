@@ -1,6 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const PORT = "4173";
+const PORT = "8787";
 
 // The workspace used for development has a preinstalled Chromium that does not
 // match the Playwright revision; PW_CHROMIUM_PATH points to it there. CI installs
@@ -26,8 +26,10 @@ export default defineConfig({
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
+  // The build is served by wrangler, the local runtime of Cloudflare Workers, so
+  // the tests see the same responses and headers (public/_headers) as production.
   webServer: {
-    command: `npm run preview -- --host 127.0.0.1`,
+    command: "npm run serve",
     url: `http://127.0.0.1:${PORT}`,
     reuseExistingServer: !process.env["CI"],
   },

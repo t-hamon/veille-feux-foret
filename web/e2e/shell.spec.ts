@@ -21,6 +21,24 @@ test.describe("page shell", () => {
     expect(csp).not.toContain("unsafe-inline");
   });
 
+  test("serves the security headers of public/_headers", async ({ page }) => {
+    const response = await page.goto("/");
+    expect(response?.status()).toBe(200);
+    const headers = response?.headers() ?? {};
+    expect(headers["content-security-policy"]).toContain("frame-ancestors 'none'");
+    expect(headers["content-security-policy"]).not.toContain("unsafe-inline");
+    expect(headers["x-content-type-options"]).toBe("nosniff");
+    expect(headers["x-frame-options"]).toBe("DENY");
+    expect(headers["referrer-policy"]).toBe("strict-origin-when-cross-origin");
+    expect(headers["permissions-policy"]).toContain("geolocation=()");
+    expect(headers["cross-origin-opener-policy"]).toBe("same-origin");
+  });
+
+  test("answers 404 for unknown paths and never exposes _headers", async ({ request }) => {
+    expect((await request.get("/nexiste-pas")).status()).toBe(404);
+    expect((await request.get("/_headers")).status()).toBe(404);
+  });
+
   test("cycles the theme and remembers it after a reload", async ({ page }) => {
     await page.emulateMedia({ colorScheme: "light" });
     await page.goto("/");
