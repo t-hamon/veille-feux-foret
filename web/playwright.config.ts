@@ -14,6 +14,11 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env["CI"],
   retries: process.env["CI"] ? 1 : 0,
+  // Locally, several Firefox and WebKit instances started in parallel crashed or
+  // timed out on a Windows workstation, while the same tests passed one at a time.
+  // One worker by default keeps local runs reliable; pass --workers to override.
+  // CI keeps Playwright's default.
+  ...(process.env["CI"] ? {} : { workers: 1 }),
   reporter: process.env["CI"] ? [["list"], ["html", { open: "never" }]] : [["list"]],
   use: {
     // Tests only ever target the local build of this project.
