@@ -90,6 +90,14 @@ jobs:
     needs: web
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # Official Playwright image, as documented by Playwright: the three browsers
+    # and their system libraries are preinstalled. Installing them on the runner
+    # took from under a minute to more than half an hour depending on the run.
+    # The tag must match @playwright/test in web/package-lock.json (checked below);
+    # the digest is the multi-platform index published for that tag.
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble@sha256:eff16c30e6f3f4af0a03fa4b706120d5e9b0891c344a27d64559aff5900a4a27
+      options: --user 1001
     defaults:
       run:
         working-directory: web
@@ -103,7 +111,15 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
       - run: npm ci
-      - run: npx playwright install --with-deps chromium firefox webkit
+      - name: Check that the image matches the Playwright version
+        env:
+          IMAGE_VERSION: "1.63.0"
+        run: |
+          installed="$(node -p "require('@playwright/test/package.json').version")"
+          if [ "$installed" != "$IMAGE_VERSION" ]; then
+            echo "::error::@playwright/test is $installed but the container image is $IMAGE_VERSION; update the image tag in ci.yml"
+            exit 1
+          fi
       - run: npm run build
       - run: npx playwright test
       - if: failure()
