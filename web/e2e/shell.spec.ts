@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 test.describe("page shell", () => {
   test("shows the disclaimer with the emergency numbers", async ({ page }) => {
@@ -70,23 +70,30 @@ test.describe("page shell", () => {
   });
 });
 
-// The system colour scheme is emulated on the browser context, not with
-// page.emulateMedia: the security headers (COOP) can make Firefox swap the
-// browsing context on navigation, and a page-level emulation set before the
-// first navigation was then lost.
+// With Cross-Origin-Opener-Policy, a colour scheme emulated before the first
+// navigation (on the page or on the browser context) was lost in Firefox, while
+// Chromium and WebKit kept it; removing COOP made the tests pass again. The
+// likely cause is the switch to a new browsing context group on that navigation.
+// The scheme is therefore emulated once the page is loaded: the page must follow
+// the change live, then start in the right theme after a reload.
+async function openWithScheme(page: Page, scheme: "light" | "dark"): Promise<void> {
+  await page.goto("/");
+  await page.emulateMedia({ colorScheme: scheme });
+  await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
+  await page.reload();
+}
+
 for (const scheme of ["light", "dark"] as const) {
   test.describe(`system colour scheme: ${scheme}`, () => {
-    test.use({ colorScheme: scheme });
-
-    test("follows the system theme in automatic mode", async ({ page }) => {
-      await page.goto("/");
+    test("follows the system theme in automatic mode, live and on load", async ({ page }) => {
+      await openWithScheme(page, scheme);
       const html = page.locator("html");
       await expect(html).toHaveAttribute("data-theme-preference", "auto");
       await expect(html).toHaveAttribute("data-theme", scheme);
     });
 
     test("has no automatic accessibility violation", async ({ page }) => {
-      await page.goto("/");
+      await openWithScheme(page, scheme);
       // Make sure the theme under audit is really the one requested.
       await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
       const results = await new AxeBuilder({ page })
@@ -97,19 +104,15 @@ for (const scheme of ["light", "dark"] as const) {
   });
 }
 
-test.describe("theme switch", () => {
-  test.use({ colorScheme: "light" });
-
-  test("cycles the theme and remembers it after a reload", async ({ page }) => {
-    await page.goto("/");
-    const html = page.locator("html");
-    const toggle = page.getByRole("button", { name: /Changer de thème/ });
-    await expect(html).toHaveAttribute("data-theme", "light");
-    await toggle.click();
-    await expect(html).toHaveAttribute("data-theme-preference", "light");
-    await toggle.click();
-    await expect(html).toHaveAttribute("data-theme", "dark");
-    await page.reload();
-    await expect(html).toHaveAttribute("data-theme", "dark");
-  });
+test("cycles the theme and remembers it after a reload", async ({ page }) => {
+  await openWithScheme(page, "light");
+  const html = page.locator("html");
+  const toggle = page.getByRole("button", { name: /Changer de thème/ });
+  await expect(html).toHaveAttribute("data-theme", "light");
+  await toggle.click();
+  await expect(html).toHaveAttribute("data-theme-preference", "light");
+  await toggle.click();
+  await expect(html).toHaveAttribute("data-theme", "dark");
+  await page.reload();
+  await expect(html).toHaveAttribute("data-theme", "dark");
 });

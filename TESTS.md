@@ -76,7 +76,15 @@ Exécution par le mainteneur le 1er octobre 2026 (Node.js 24.19, Python 3.12.10)
 
 Les échecs disparaissent quand les navigateurs tournent un par un, et la CI Linux passe sur les trois moteurs avec les mêmes tests : ils venaient de la charge parallèle sur le poste, pas de l'application. Les exécutions locales utilisent depuis un seul navigateur à la fois par défaut.
 
-L'échec Firefox est apparu quand le build a été servi avec les en-têtes de Cloudflare ; le job end-to-end de la CI a aussi échoué sur ce commit, sans que le test en cause soit connu (journal non lisible). Le test simulait le thème sombre sur la page avant la première navigation ; avec `Cross-Origin-Opener-Policy`, Firefox peut changer de contexte de navigation à ce moment-là, et la simulation était perdue. Le thème est désormais simulé au niveau du contexte du navigateur, et le test d'accessibilité vérifie que le thème analysé est bien celui demandé. Ce correctif reste à confirmer sur Firefox, dans la CI et sur le poste Windows.
+L'échec Firefox est apparu quand le build a été servi avec les en-têtes de Cloudflare ; le job end-to-end de la CI a aussi échoué sur ce commit, sans que le test en cause soit connu (journal non lisible). Une expérience sur le poste Windows a isolé la cause, en retirant des en-têtes de la copie construite :
+
+| En-têtes servis | Tests du thème sombre sous Firefox |
+|---|---|
+| tous | échec : la page reste en clair |
+| sans `Cross-Origin-Opener-Policy` ni `Cross-Origin-Embedder-Policy` | réussis |
+| sans `Cross-Origin-Embedder-Policy` seulement | échec |
+
+En présence de `Cross-Origin-Opener-Policy`, la simulation du thème posée avant le premier chargement est perdue sous Firefox, qu'elle soit posée sur la page ou sur le contexte du navigateur. L'explication probable, non vérifiée dans le code de Firefox ou de Playwright, est que Firefox charge alors la page dans un nouveau groupe de contextes de navigation. L'en-tête est conservé pour sa valeur de sécurité ; les tests simulent désormais le thème une fois la page chargée, vérifient que la page suit le changement, puis qu'elle démarre dans le bon thème après rechargement. Ce correctif reste à confirmer sur Firefox.
 
 ### Intégration continue (GitHub Actions, Linux)
 
