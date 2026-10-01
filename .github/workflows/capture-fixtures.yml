@@ -1,0 +1,63 @@
+name: Capture fixtures
+
+# Started by hand from the Actions tab. It downloads raw samples of the public
+# sources listed in pipeline/src/veille_feux/capture.py and pushes them to a new
+# branch named fixtures/capture-<run id>. Nothing is merged automatically: the
+# samples are reviewed, trimmed and turned into test fixtures in a pull request.
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: capture-fixtures
+  cancel-in-progress: false
+
+jobs:
+  capture:
+    name: Capture source samples
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write # push the review branch with the captured samples
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Install the pipeline
+        run: python -m pip install ./pipeline
+      - name: Capture
+        id: capture
+        run: |
+          stamp="$(date -u +%Y%m%dT%H%MZ)"
+          dest="fixtures/raw/${stamp}"
+          veille-feux-capture "$dest" | tee capture.log
+          echo "dest=${dest}" >> "$GITHUB_OUTPUT"
+      - name: Summary
+        env:
+          DEST: ${{ steps.capture.outputs.dest }}
+        run: |
+          {
+            echo "## Capture"
+            echo
+            echo '```'
+            cat capture.log
+            echo '```'
+            echo
+            du -sh "$DEST"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Push to a review branch
+        env:
+          DEST: ${{ steps.capture.outputs.dest }}
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: fixtures/capture-${{ github.run_id }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$BRANCH"
+          git add "$DEST"
+          git commit -m "Capture raw source samples" -m "Automated capture from the Capture fixtures workflow. Raw responses, gzip compressed, with a manifest listing URL, date, size, SHA-256 and licence of each source."
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$BRANCH"
