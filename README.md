@@ -23,12 +23,12 @@ La démo en ligne, les captures d'écran et la comparaison détaillée avec les 
 
 ```
 pipeline/   Python : collecte et normalisation des sources publiques (GitHub Actions)
-web/        Vite + TypeScript : application statique publiée sur GitHub Pages
+web/        Vite + TypeScript : application statique, servie par Cloudflare Workers
 fixtures/   échantillons réels des sources, utilisés par les tests
 .github/    intégration continue, contrôles de sécurité, capture des fixtures
 ```
 
-Le pipeline tourne dans GitHub Actions et produit des fichiers statiques que l'application lit. Aucun serveur n'est nécessaire tant que les lots 1 à 4 le permettent ; le besoin d'un back-end sera tranché avant le lot 5.
+Le pipeline tourne dans GitHub Actions et produit des fichiers statiques que l'application lit. Le site sera servi par Cloudflare Workers en fichiers statiques : les requêtes y sont gratuites et sans plafond, ce qui garde le site disponible lors des pics de consultation pendant les grands feux, et les en-têtes de sécurité sont définis dans `web/public/_headers`. En local, `npm run serve` sert le build avec le même moteur (wrangler) et les mêmes en-têtes. Aucun serveur n'est nécessaire tant que les lots 1 à 4 le permettent ; le besoin d'un back-end sera tranché avant le lot 5.
 
 ## Développement
 
@@ -48,6 +48,7 @@ cd ../web
 npm ci
 npm run dev          # serveur de développement
 npm run build        # build de production dans web/dist
+npm run serve        # sert le build avec le moteur de Cloudflare et ses en-têtes
 npm test             # tests unitaires avec couverture
 npx playwright install chromium firefox webkit
 npm run test:e2e     # tests end-to-end sur le build local
@@ -88,7 +89,8 @@ Détail des éléments repris, sources de données et licences : [CREDITS.md](CR
 
 ## Limites connues
 
-- GitHub Pages ne permet pas d'envoyer des en-têtes HTTP personnalisés : la politique de sécurité du contenu passe par une balise meta, et la protection contre l'intégration dans un cadre (clickjacking) n'est pas possible par en-tête. Voir [SECURITY.md](SECURITY.md).
+- La politique d'isolation inter-origines est stricte tant que le site ne charge rien d'un autre domaine ; elle sera adaptée au lot 1b avec les tuiles de carte. Voir [SECURITY.md](SECURITY.md).
+- Le déploiement sur Cloudflare arrive avec le lot 1b.
 
 ## Licence
 
