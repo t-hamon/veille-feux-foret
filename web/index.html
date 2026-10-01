@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <meta name="color-scheme" content="light dark" />
+    <meta
+      name="description"
+      content="Carte citoyenne des feux de forêt en France métropolitaine. Outil d'information, pas une source officielle."
+    />
+    <title>Veille feux de forêt</title>
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <script type="module" src="/src/main.ts"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#contenu">Aller au contenu</a>
+    <header class="site-header">
+      <p class="site-title">Veille feux de forêt</p>
+      <button id="theme-toggle" type="button" class="theme-toggle">Thème : automatique</button>
+    </header>
+
+    <main id="contenu" tabindex="-1">
+      <h1>Carte citoyenne des feux de forêt en France</h1>
+      <p class="lead">
+        Foyers détectés par satellite, périmètres brûlés, vent et prévision à quelques heures,
+        imagerie et lecture dans le temps.
+      </p>
+
+      <aside class="warning" aria-labelledby="avertissement-titre">
+        <h2 id="avertissement-titre">Avertissement</h2>
+        <p>
+          Outil d'information citoyenne, pas un outil opérationnel ni une source officielle. Seules
+          les consignes des préfectures et des services de secours font foi.
+        </p>
+        <p class="emergency">
+          En cas d'urgence, appelez le <a href="tel:18">18</a> ou le <a href="tel:112">112</a>.
+        </p>
+      </aside>
+
+      <p class="status">La carte sera disponible dans une prochaine version.</p>
+    </main>
+
+    <footer class="site-footer">
+      <p>
+        Code source et crédits :
+        <a href="https://github.com/t-hamon/veille-feux-foret"
+          >github.com/t-hamon/veille-feux-foret</a
+        >
+        (licence MIT).
+      </p>
+    </footer>
+  </body>
+</html>

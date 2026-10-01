@@ -1,0 +1,36 @@
+import { defineConfig, devices } from "@playwright/test";
+
+const PORT = "4173";
+
+// The workspace used for development has a preinstalled Chromium that does not
+// match the Playwright revision; PW_CHROMIUM_PATH points to it there. CI installs
+// the matching browsers and leaves the variable unset.
+const chromiumPath = process.env["PW_CHROMIUM_PATH"];
+const chromiumLaunch = chromiumPath ? { launchOptions: { executablePath: chromiumPath } } : {};
+
+export default defineConfig({
+  testDir: "./e2e",
+  timeout: 30_000,
+  fullyParallel: true,
+  forbidOnly: !!process.env["CI"],
+  retries: process.env["CI"] ? 1 : 0,
+  reporter: process.env["CI"] ? [["list"], ["html", { open: "never" }]] : [["list"]],
+  use: {
+    // Tests only ever target the local build of this project.
+    baseURL: `http://127.0.0.1:${PORT}`,
+    trace: "retain-on-failure",
+    screenshot: "only-on-failure",
+  },
+  webServer: {
+    command: `npm run preview -- --host 127.0.0.1`,
+    url: `http://127.0.0.1:${PORT}`,
+    reuseExistingServer: !process.env["CI"],
+  },
+  projects: [
+    { name: "chromium-desktop", use: { ...devices["Desktop Chrome"], ...chromiumLaunch } },
+    { name: "chromium-mobile", use: { ...devices["Pixel 7"], ...chromiumLaunch } },
+    { name: "firefox-desktop", use: { ...devices["Desktop Firefox"] } },
+    { name: "webkit-desktop", use: { ...devices["Desktop Safari"] } },
+    { name: "webkit-mobile", use: { ...devices["iPhone 15"] } },
+  ],
+});
