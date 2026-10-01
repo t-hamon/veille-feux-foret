@@ -33,6 +33,9 @@ function contentSecurityPolicy(): Plugin {
 
 export default defineConfig({
   base: "./",
+  // "mpa" makes the preview server answer 404 for unknown paths, as GitHub Pages
+  // does, instead of serving index.html for every URL.
+  appType: "mpa",
   plugins: [contentSecurityPolicy()],
   build: {
     target: "es2022",
