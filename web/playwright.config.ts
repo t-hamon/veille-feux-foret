@@ -19,7 +19,8 @@ export default defineConfig({
   // One worker by default keeps local runs reliable; pass --workers to override.
   // CI keeps Playwright's default.
   ...(process.env["CI"] ? {} : { workers: 1 }),
-  reporter: process.env["CI"] ? [["list"], ["html", { open: "never" }]] : [["list"]],
+  // In CI, the "github" reporter turns each failure into an annotation on the PR.
+  reporter: process.env["CI"] ? [["list"], ["github"], ["html", { open: "never" }]] : [["list"]],
   use: {
     // Tests only ever target the local build of this project.
     baseURL: `http://127.0.0.1:${PORT}`,

@@ -72,8 +72,11 @@ Exécution par le mainteneur le 1er octobre 2026 (Node.js 24.19, Python 3.12.10)
 | Playwright, les 5 profils en parallèle (4 navigateurs simultanés) | Chromium : 15 réussis, 1 ignoré. Firefox et WebKit : 7 réussis, 15 échecs par dépassement de délai ou arrêt brutal du navigateur, 2 ignorés |
 | Playwright, Firefox desktop seul, 1 navigateur à la fois | 8 réussis |
 | Playwright, WebKit desktop seul, 1 navigateur à la fois | 7 réussis, 1 ignoré (clavier) |
+| Playwright, les 5 profils, 1 navigateur à la fois, build servi par wrangler | 46 réussis, 3 ignorés (clavier sur mobile et WebKit), 1 échec : Firefox, thème système sombre (voir ci-dessous) |
 
 Les échecs disparaissent quand les navigateurs tournent un par un, et la CI Linux passe sur les trois moteurs avec les mêmes tests : ils venaient de la charge parallèle sur le poste, pas de l'application. Les exécutions locales utilisent depuis un seul navigateur à la fois par défaut.
+
+L'échec Firefox est apparu quand le build a été servi avec les en-têtes de Cloudflare ; le job end-to-end de la CI a aussi échoué sur ce commit, sans que le test en cause soit connu (journal non lisible). Le test simulait le thème sombre sur la page avant la première navigation ; avec `Cross-Origin-Opener-Policy`, Firefox peut changer de contexte de navigation à ce moment-là, et la simulation était perdue. Le thème est désormais simulé au niveau du contexte du navigateur, et le test d'accessibilité vérifie que le thème analysé est bien celui demandé. Ce correctif reste à confirmer sur Firefox, dans la CI et sur le poste Windows.
 
 ### Intégration continue (GitHub Actions, Linux)
 

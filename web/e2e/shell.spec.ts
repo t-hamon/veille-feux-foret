@@ -39,26 +39,6 @@ test.describe("page shell", () => {
     expect((await request.get("/_headers")).status()).toBe(404);
   });
 
-  test("cycles the theme and remembers it after a reload", async ({ page }) => {
-    await page.emulateMedia({ colorScheme: "light" });
-    await page.goto("/");
-    const html = page.locator("html");
-    const toggle = page.getByRole("button", { name: /Changer de thème/ });
-    await expect(html).toHaveAttribute("data-theme", "light");
-    await toggle.click();
-    await expect(html).toHaveAttribute("data-theme-preference", "light");
-    await toggle.click();
-    await expect(html).toHaveAttribute("data-theme", "dark");
-    await page.reload();
-    await expect(html).toHaveAttribute("data-theme", "dark");
-  });
-
-  test("follows the system theme in automatic mode", async ({ page }) => {
-    await page.emulateMedia({ colorScheme: "dark" });
-    await page.goto("/");
-    await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
-  });
-
   test("is usable with the keyboard only", async ({ page, browserName, isMobile }) => {
     test.skip(isMobile, "no physical keyboard on the mobile profiles");
     test.skip(
@@ -75,17 +55,6 @@ test.describe("page shell", () => {
     await expect(page.locator("html")).toHaveAttribute("data-theme-preference", "light");
   });
 
-  for (const scheme of ["light", "dark"] as const) {
-    test(`has no automatic accessibility violation (${scheme})`, async ({ page }) => {
-      await page.emulateMedia({ colorScheme: scheme });
-      await page.goto("/");
-      const results = await new AxeBuilder({ page })
-        .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
-        .analyze();
-      expect(results.violations).toEqual([]);
-    });
-  }
-
   test("still renders when local storage is unavailable", async ({ page }) => {
     await page.addInitScript(() => {
       Object.defineProperty(window, "localStorage", {
@@ -98,5 +67,49 @@ test.describe("page shell", () => {
     const toggle = page.getByRole("button", { name: /Changer de thème/ });
     await toggle.click();
     await expect(page.locator("html")).toHaveAttribute("data-theme-preference", "light");
+  });
+});
+
+// The system colour scheme is emulated on the browser context, not with
+// page.emulateMedia: the security headers (COOP) can make Firefox swap the
+// browsing context on navigation, and a page-level emulation set before the
+// first navigation was then lost.
+for (const scheme of ["light", "dark"] as const) {
+  test.describe(`system colour scheme: ${scheme}`, () => {
+    test.use({ colorScheme: scheme });
+
+    test("follows the system theme in automatic mode", async ({ page }) => {
+      await page.goto("/");
+      const html = page.locator("html");
+      await expect(html).toHaveAttribute("data-theme-preference", "auto");
+      await expect(html).toHaveAttribute("data-theme", scheme);
+    });
+
+    test("has no automatic accessibility violation", async ({ page }) => {
+      await page.goto("/");
+      // Make sure the theme under audit is really the one requested.
+      await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
+      const results = await new AxeBuilder({ page })
+        .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
+        .analyze();
+      expect(results.violations).toEqual([]);
+    });
+  });
+}
+
+test.describe("theme switch", () => {
+  test.use({ colorScheme: "light" });
+
+  test("cycles the theme and remembers it after a reload", async ({ page }) => {
+    await page.goto("/");
+    const html = page.locator("html");
+    const toggle = page.getByRole("button", { name: /Changer de thème/ });
+    await expect(html).toHaveAttribute("data-theme", "light");
+    await toggle.click();
+    await expect(html).toHaveAttribute("data-theme-preference", "light");
+    await toggle.click();
+    await expect(html).toHaveAttribute("data-theme", "dark");
+    await page.reload();
+    await expect(html).toHaveAttribute("data-theme", "dark");
   });
 });
