@@ -34,8 +34,9 @@ Exécution locale du 1er octobre 2026, sur la branche `lot-1a/socle-ci`. Les ré
 | pytest | 13 tests réussis |
 | Couverture | 96 % des instructions de `veille_feux` (lignes non couvertes : ouverture réseau réelle et point d'entrée `__main__`) |
 | pip-audit, environnement contenant uniquement les dépendances du projet | aucune vulnérabilité connue |
+| pytest sous Windows (Python 3.12.10, poste de développement) | 13 tests réussis, couverture 96 % |
 
-### Application web (Node.js 22)
+### Application web (Node.js 24.21)
 
 | Test | Résultat |
 |---|---|

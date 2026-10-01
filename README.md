@@ -32,7 +32,9 @@ Le pipeline tourne dans GitHub Actions et produit des fichiers statiques que l'a
 
 ## Développement
 
-Prérequis : Python 3.11 ou plus, Node.js 22.
+Prérequis : Python 3.11 ou plus, Node.js 24.15 ou plus (version LTS active, maintenue jusqu'en avril 2028). Avec une version plus ancienne, `npm ci` s'arrête avec un message explicite.
+
+Linux, macOS, Git Bash :
 
 ```bash
 # Pipeline
@@ -42,7 +44,7 @@ pip install -e ".[dev]"
 ruff check . && mypy src tests && pytest
 
 # Application
-cd web
+cd ../web
 npm ci
 npm run dev          # serveur de développement
 npm run build        # build de production dans web/dist
@@ -50,6 +52,25 @@ npm test             # tests unitaires avec couverture
 npx playwright install chromium firefox webkit
 npm run test:e2e     # tests end-to-end sur le build local
 ```
+
+Windows PowerShell (une commande par ligne, `&&` n'existe pas dans PowerShell 5.1) :
+
+```powershell
+cd pipeline
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -e ".[dev]"
+pytest
+deactivate
+cd ..\web
+npm ci
+npm test
+npm run build
+npx playwright install chromium firefox webkit
+npm run test:e2e
+```
+
+Si PowerShell refuse `Activate.ps1`, lancer d'abord `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass`, qui n'autorise les scripts que pour la fenêtre en cours.
 
 Le détail des tests et de leurs derniers résultats est dans [TESTS.md](TESTS.md), la politique et les contrôles de sécurité dans [SECURITY.md](SECURITY.md).
 
