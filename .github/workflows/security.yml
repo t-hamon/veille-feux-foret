@@ -52,6 +52,10 @@ jobs:
           semgrep scan --error --metrics=off
           --config p/default --config p/python --config p/typescript
           --config p/github-actions --config p/secrets
+          --json-output=semgrep.json
+      - name: Report findings as annotations
+        if: ${{ !cancelled() }}
+        run: python tools/ci_annotations.py semgrep semgrep.json
 
   workflows:
     name: Workflow security (zizmor)
@@ -97,3 +101,6 @@ jobs:
           allow_issue_writing: false
           fail_action: true
           artifact_name: zap-baseline
+      - name: Report alerts as annotations
+        if: ${{ !cancelled() }}
+        run: python3 tools/ci_annotations.py zap report_json.json

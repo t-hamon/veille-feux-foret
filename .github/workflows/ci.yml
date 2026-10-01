@@ -40,6 +40,12 @@ jobs:
         run: bandit -c pyproject.toml -r src
       - name: Dependency audit
         run: pip-audit --skip-editable
+      - name: CI tools (lint, types, tests)
+        working-directory: tools
+        run: |
+          ruff check . && ruff format --check .
+          mypy --strict .
+          python -m pytest -p no:cacheprovider .
 
   web:
     name: Web (lint, types, unit tests, build)
