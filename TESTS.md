@@ -30,7 +30,7 @@ Exécution du 3 octobre 2026 dans l'espace de développement, branche `lot-1b/do
 |---|---|
 | ruff, mypy strict (pipeline et outils) | aucun problème |
 | pytest | 106 tests réussis, couverture 97 % |
-| Chaque commit de la branche pris isolément : ruff, mypy, pytest | réussi pour les 8 commits |
+| Chaque commit de la branche pris isolément : ruff, mypy, pytest | réussi pour chacun des 11 commits |
 | bandit | aucun problème |
 | pip-audit, environnement contenant uniquement les dépendances du projet | aucune vulnérabilité connue |
 | Installation non éditable du paquet (celle du workflow de capture) | les 3 fichiers de données et les 2 commandes sont présents |

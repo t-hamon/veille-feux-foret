@@ -24,4 +24,4 @@ La liste des sources est fixée dans le code : le workflow n'accepte aucun param
 |---|---|---|
 | NASA FIRMS (VIIRS, MODIS) | politique de données ouvertes de la NASA | citation demandée et lien vers l'avertissement LANCE |
 | Copernicus EFFIS | CC BY 4.0 | crédit à EFFIS (Commission européenne, Centre commun de recherche) et mention des modifications |
-| geo.api.gouv.fr (recherche de commune) | à vérifier avant utilisation par la carte | à vérifier |
+| geo.api.gouv.fr (recherche de commune) | Licence Ouverte (Etalab) | INSEE (Code officiel géographique) et IGN (ADMIN EXPRESS), avec la date de la donnée |

@@ -33,7 +33,9 @@
 |---|---|---|
 | NASA FIRMS (VIIRS 375 m, MODIS 1 km) | politique de données ouvertes de la NASA, citation et avertissement LANCE | vérifiée, utilisée par la commande de construction des données |
 | Copernicus EFFIS (surfaces brûlées, statistiques) | CC BY 4.0 | vérifiée, utilisée par la commande de construction des données |
-| geo.api.gouv.fr (recherche de commune) | à vérifier | utilisée seulement par la capture d'un échantillon |
+| geo.api.gouv.fr (recherche de commune), service de la DINUM | Licence Ouverte (Etalab) pour les données de la métropole : noms et codes des communes issus du Code officiel géographique de l'INSEE, contours issus d'IGN ADMIN EXPRESS | vérifiée le 3 octobre 2026, utilisée seulement par la capture d'un échantillon |
+
+La licence de geo.api.gouv.fr a été vérifiée dans les dépôts dont le service est construit, [api-geo](https://github.com/datagouv/api-geo), [decoupage-administratif](https://github.com/datagouv/decoupage-administratif) et [contours-administratifs](https://github.com/datagouv/contours-administratifs) : la fiche de l'API sur data.gouv.fr indique un accès ouvert, limité à 50 appels par seconde et par adresse IP, sans nommer de licence. Le code de ces dépôts est sous licence MIT ; il n'est pas repris ici.
 
 Les autres sources (Open-Meteo, Météo-France, IGN, OpenFreeMap, Sentinel-2, ADS-B) seront vérifiées avant leur intégration, lot par lot.
 

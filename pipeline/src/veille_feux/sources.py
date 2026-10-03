@@ -21,9 +21,12 @@ FRANCE_BBOX = (-5.5, 41.0, 10.0, 51.5)
 
 FIRMS_LICENCE = "NASA open data policy, citation and LANCE disclaimer required"
 EFFIS_LICENCE = "CC BY 4.0 (EFFIS, European Commission JRC)"
-# Not verified yet: to be confirmed on geo.api.gouv.fr before the lookup is used
-# by the map. Only the capture of a sample uses this source for now.
-GEO_API_LICENCE = "geo.api.gouv.fr, licence to be verified"
+# Checked on 3 October 2026 in the repositories the service is built from
+# (datagouv/api-geo, decoupage-administratif, contours-administratifs): for
+# metropolitan France, commune names and codes come from the INSEE Code officiel
+# geographique and outlines from IGN ADMIN EXPRESS, both under the Licence Ouverte.
+# Run by DINUM, limited to 50 calls per second per IP address.
+GEO_API_LICENCE = "Licence Ouverte (Etalab): INSEE COG and IGN ADMIN EXPRESS, via geo.api.gouv.fr"
 
 Sensor = Literal["viirs", "modis"]
 Window = Literal["24h", "7d"]
