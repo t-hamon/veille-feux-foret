@@ -26,6 +26,9 @@ veille-feux-capture = "veille_feux.capture:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+veille_feux = ["data/*.json", "data/*.geojson"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"
