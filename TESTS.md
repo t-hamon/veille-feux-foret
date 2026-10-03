@@ -9,6 +9,7 @@ Ce fichier consigne les tests du projet et les résultats des dernières exécut
 | Lint et format Python | ruff | CI `pipeline` |
 | Typage Python | mypy (strict) | CI `pipeline` |
 | Tests unitaires Python et couverture | pytest, pytest-cov | CI `pipeline` |
+| Parseurs et construction des données sur réponses réelles des sources | pytest, fixtures issues du workflow **Capture fixtures** | CI `pipeline` |
 | Lint et format TypeScript | ESLint (typescript-eslint strict), Prettier | CI `web` |
 | Typage TypeScript | tsc | CI `web` |
 | Tests unitaires TypeScript et couverture | Vitest, couverture v8 | CI `web` |
@@ -20,6 +21,37 @@ Ce fichier consigne les tests du projet et les résultats des dernières exécut
 | Performance, accessibilité, bonnes pratiques | Lighthouse CI | CI `lighthouse` |
 
 Les contrôles de sécurité (gitleaks, semgrep, bandit, zizmor, OWASP ZAP) sont décrits dans [SECURITY.md](SECURITY.md).
+
+## Résultats du lot 1b, partie 1 : données
+
+Exécution du 3 octobre 2026 dans l'espace de développement, branche `lot-1b/donnees`, Python 3.11.
+
+| Test | Résultat |
+|---|---|
+| ruff, mypy strict (pipeline et outils) | aucun problème |
+| pytest | 106 tests réussis, couverture 97 % |
+| Chaque commit de la branche pris isolément : ruff, mypy, pytest | réussi pour les 8 commits |
+| bandit | aucun problème |
+| pip-audit, environnement contenant uniquement les dépendances du projet | aucune vulnérabilité connue |
+| Installation non éditable du paquet (celle du workflow de capture) | les 3 fichiers de données et les 2 commandes sont présents |
+| Reproductibilité des fichiers générés (`tools/extract_effis_fixtures.py`, `tools/build_neighbours.py`) | fichiers identiques octet pour octet à une seconde exécution |
+| gitleaks, historique complet | aucune fuite |
+
+Mesures sur la capture réelle du 3 octobre 2026, 11 h 28 UTC :
+
+| Étape | Résultat |
+|---|---|
+| Détections FIRMS en Europe sur 24 h | 3 837, toutes lues sans erreur |
+| Dans la métropole | 143 |
+| Écartées comme sites industriels | 97 (Fos-sur-Mer, Dunkerque, Florange, cimenteries, raffineries) |
+| Détections conservées, foyers | 46 détections, 7 foyers |
+| Surfaces brûlées EFFIS datées, françaises | 1 689 sur 3 086 ; 6 écartées car de surface nulle selon EFFIS |
+| Surfaces brûlées EFFIS récentes touchant la France | 2 626 sur 5 073 |
+| Bilan de la saison | 97 971 ha, moyenne depuis 2006 : 14 198 ha |
+| Durée de la commande sur la capture complète | 16 s |
+| Poids des fichiers produits, compressés | moins de 400 Kio, dont 383 Kio de surfaces brûlées |
+
+Ces mesures ont été obtenues en servant les fichiers capturés à la commande à la place des sources. La collecte réelle depuis les serveurs sera exercée par le workflow de déploiement (partie 3 du lot).
 
 ## Résultats du lot 1a
 
