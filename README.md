@@ -11,7 +11,7 @@ Le projet est construit par lots, chacun livré par une ou plusieurs pull reques
 | Lot | Contenu | État |
 |---|---|---|
 | 1a | Dépôt, intégration continue, contrôles de sécurité, capture de fixtures | en revue (PR n°1) |
-| 1b | Carte, foyers FIRMS, périmètres EFFIS, frise temporelle, déploiement | à venir |
+| 1b | Carte, foyers FIRMS, périmètres EFFIS, frise temporelle, déploiement | en cours |
 | 2 | Prévision : vent, météo AROME, propagation | à venir |
 | 3 | Imagerie et temps : comparaison, imagerie, relief 3D, fumée | à venir |
 | 4 | Situation : score de menace, danger Météo-France, moyens aériens, enjeux exposés | à venir |
@@ -28,7 +28,7 @@ fixtures/   échantillons réels des sources, utilisés par les tests
 .github/    intégration continue, contrôles de sécurité, capture des fixtures
 ```
 
-Le pipeline tourne dans GitHub Actions et produit des fichiers statiques que l'application lit. Le site sera servi par Cloudflare Workers en fichiers statiques : les requêtes y sont gratuites et sans plafond, ce qui garde le site disponible lors des pics de consultation pendant les grands feux, et les en-têtes de sécurité sont définis dans `web/public/_headers`. En local, `npm run serve` sert le build avec le même moteur (wrangler) et les mêmes en-têtes. Aucun serveur n'est nécessaire tant que les lots 1 à 4 le permettent ; le besoin d'un back-end sera tranché avant le lot 5.
+Le pipeline tourne dans GitHub Actions et produit des fichiers statiques que l'application lit : la commande `veille-feux-build` collecte les détections FIRMS des 7 derniers jours, les regroupe en foyers, lit les surfaces brûlées et le bilan de la saison publiés par EFFIS, et écrit un fichier d'état de chaque source. Quand une source ne répond pas, la commande reprend les fichiers du déploiement précédent et les signale comme anciens : une panne ne vide jamais la carte et ne fait jamais passer une donnée ancienne pour récente. Le site sera servi par Cloudflare Workers en fichiers statiques : les requêtes y sont gratuites et sans plafond, ce qui garde le site disponible lors des pics de consultation pendant les grands feux, et les en-têtes de sécurité sont définis dans `web/public/_headers`. En local, `npm run serve` sert le build avec le même moteur (wrangler) et les mêmes en-têtes. Aucun serveur n'est nécessaire tant que les lots 1 à 4 le permettent ; le besoin d'un back-end sera tranché avant le lot 5.
 
 ## Développement
 
@@ -42,6 +42,7 @@ cd pipeline
 python -m venv .venv && . .venv/bin/activate
 pip install -e ".[dev]"
 ruff check . && mypy src tests && pytest
+veille-feux-build ../donnees   # collecte réelle, demande un accès réseau aux sources
 
 # Application
 cd ../web

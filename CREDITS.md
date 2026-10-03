@@ -4,20 +4,38 @@
 
 | Projet | Auteur | Licence | Ce qui est repris |
 |---|---|---|---|
-| [carte-incendies](https://github.com/lgdlcs/feux-france) ([démo](https://carte-incendies.fr)) | Lucas Legrand (lgdlcs) | MIT | Code d'origine sous licence MIT, réutilisé et modifié. À ce stade : texte de la licence, URL des flux FIRMS 24 h, URL et paramètres des requêtes EFFIS (WFS et statistiques hebdomadaires), emprise de la métropole. |
+| [carte-incendies](https://github.com/lgdlcs/feux-france) ([démo](https://carte-incendies.fr)) | Lucas Legrand (lgdlcs) | MIT | Code d'origine sous licence MIT, réutilisé et modifié (détail ci-dessous). |
 | [Flamap](https://github.com/rozierguillaume/flamap) ([démo](https://flamap.fr)) | Guillaume Rozier (rozierguillaume) | aucune licence déclarée | Inspiration fonctionnelle, réimplémentation indépendante, aucun code repris. Seuls le README et la démo publique ont été consultés. |
 | [feux-france](https://github.com/the20100/feux-france) | Vincent (the20100) | aucune licence visible | Inspiration fonctionnelle, réimplémentation indépendante, aucun code repris. Seul le README a été consulté. |
 
-Le tableau est complété à chaque lot avec la liste précise des éléments repris de carte-incendies.
+### Éléments repris de carte-incendies
+
+| Élément | Où | Modifications |
+|---|---|---|
+| Texte de la licence MIT | `LICENSE` | ajout d'une ligne de copyright |
+| URL des flux FIRMS, URL et paramètres des requêtes EFFIS (WFS et statistiques), emprise de la métropole | `pipeline/src/veille_feux/sources.py` | regroupés dans un module unique qui sert aussi de liste blanche des hôtes |
+| Liste des sites industriels à chaleur permanente (21 sites) | `pipeline/src/veille_feux/data/sites_industriels.json` | tirets longs remplacés par des tirets courts dans 3 noms |
+| Test d'appartenance à la France par lancer de rayon, avec index par bandes de latitude | `pipeline/src/veille_feux/geo.py` | arêtes horizontales conservées pour le calcul de distance ; marge côtière ajoutée |
+| Regroupement des détections en foyers (grille de 0,02°, 8-connexité, 3 détections minimum, surface estimée) | `pipeline/src/veille_feux/foyers.py` | ordre et identifiants déterministes, emprise par enveloppe convexe calculée côté données |
+| Lecture des surfaces brûlées EFFIS : permutation des axes, simplification Douglas-Peucker, test France de la couche NRT, garde-fou contre une couche anormalement pauvre | `pipeline/src/veille_feux/effis.py`, `build.py` | les GeometryCollection gardent leur partie polygone au lieu d'être écartées |
+| Bilan national de la saison à partir des statistiques hebdomadaires EFFIS | `pipeline/src/veille_feux/effis.py` | les semaines non encore publiées sont ignorées explicitement |
+
+## Données géographiques embarquées
+
+| Fichier | Source | Licence |
+|---|---|---|
+| `pipeline/src/veille_feux/data/metropole.geojson` | [france-geojson](https://github.com/gregoiredavid/france-geojson) de Grégoire David, fichier `metropole.geojson`, conversion simplifiée d'IGN Admin Express COG 2018 | Licence Ouverte (IGN) ; fichier identique à celui utilisé par carte-incendies |
+| `pipeline/src/veille_feux/data/voisins.geojson` | [Natural Earth](https://www.naturalearthdata.com), `ne_10m_admin_0_countries`, dépôt [natural-earth-vector](https://github.com/nvkelso/natural-earth-vector) (commit `ca96624`) ; extrait par `tools/build_neighbours.py` | domaine public. Made with Natural Earth. |
 
 ## Sources de données
 
 | Source | Licence | Statut |
 |---|---|---|
-| NASA FIRMS (VIIRS 375 m, MODIS 1 km) | politique de données ouvertes de la NASA, citation et avertissement LANCE | vérifiée, utilisée pour la capture de fixtures |
-| Copernicus EFFIS (surfaces brûlées, statistiques) | CC BY 4.0 | vérifiée, utilisée pour la capture de fixtures |
+| NASA FIRMS (VIIRS 375 m, MODIS 1 km) | politique de données ouvertes de la NASA, citation et avertissement LANCE | vérifiée, utilisée par la commande de construction des données |
+| Copernicus EFFIS (surfaces brûlées, statistiques) | CC BY 4.0 | vérifiée, utilisée par la commande de construction des données |
+| geo.api.gouv.fr (recherche de commune) | à vérifier | utilisée seulement par la capture d'un échantillon |
 
-Les autres sources (Open-Meteo, Météo-France, IGN, Sentinel-2, ADS-B, geo.api.gouv.fr) seront vérifiées avant leur intégration, lot par lot.
+Les autres sources (Open-Meteo, Météo-France, IGN, OpenFreeMap, Sentinel-2, ADS-B) seront vérifiées avant leur intégration, lot par lot.
 
 ## Images et polices
 
