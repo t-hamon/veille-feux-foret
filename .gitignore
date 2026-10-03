@@ -3,6 +3,8 @@ __pycache__/
 *.py[cod]
 .venv/
 *.egg-info/
+pipeline/build/
+pipeline/dist/
 .coverage
 coverage.xml
 .mypy_cache/
