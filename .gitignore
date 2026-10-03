@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.coverage
+coverage.xml
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# Node
+node_modules/
+web/dist/
+web/coverage/
+web/playwright-report/
+web/test-results/
+web/lighthouse-report/
+web/.lighthouseci/
+web/preview.log
+
+# Local environment
+.env
+.env.*
+!.env.example
+
+# Editors and OS
+.DS_Store
+.idea/
+.vscode/
+web/.wrangler/
