@@ -22,6 +22,7 @@ dev = [
 
 [project.scripts]
 veille-feux-capture = "veille_feux.capture:main"
+veille-feux-build = "veille_feux.build:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
