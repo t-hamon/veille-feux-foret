@@ -33,7 +33,7 @@ Le site sera servi par Cloudflare Workers en fichiers statiques (déploiement au
 
 ## Résultats du lot 1a
 
-Exécution locale du 1er octobre 2026, sur la branche `lot-1a/socle-ci`.
+Exécution locale du 1er octobre 2026, sur la branche `lot-1a/socle-ci`, puis CI GitHub (voir plus bas).
 
 | Contrôle | Résultat |
 |---|---|
@@ -45,10 +45,20 @@ Exécution locale du 1er octobre 2026, sur la branche `lot-1a/socle-ci`.
 | Tests unitaires anti-SSRF de la capture (schéma, hôte, sous-domaine piège, `file://`, adresse de métadonnées cloud, redirection, taille) | réussis |
 | Tests end-to-end des en-têtes servis par wrangler (CSP, `frame-ancestors`, `nosniff`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, COOP), du 404 et de la non-exposition de `_headers` | réussis sur Chromium desktop et mobile |
 
-| Non exécuté localement | Raison | Où il tourne |
+Workflow `Security`, run final du 3 octobre 2026 sur le commit `4cf6186` :
+
+| Contrôle | Résultat |
+|---|---|
+| gitleaks, historique complet | aucune fuite |
+| semgrep (règles par défaut, Python, TypeScript, GitHub Actions, secrets) | aucun résultat |
+| zizmor | aucun problème |
+| OWASP ZAP baseline sur le build servi par wrangler | réussi ; seule alerte : 10049, informative, ignorée avec justification |
+
+Les deux règles semgrep relevées en cours de lot (délai de carence Dependabot, âge minimal des paquets npm) ont été corrigées, et les alertes ZAP d'en-têtes ont disparu avec le passage aux en-têtes de Cloudflare.
+
+| Non exécuté | Raison | Quand |
 |---|---|---|
-| semgrep | le registre de règles semgrep.dev n'est pas joignable depuis l'espace de développement | CI `security` |
-| OWASP ZAP baseline | l'image de ZAP ne peut pas être téléchargée dans l'espace de développement | CI `security` |
+| semgrep et ZAP dans l'espace de développement | le registre de règles semgrep et l'image de ZAP n'y sont pas joignables | couverts par la CI ci-dessus |
 | SRI sur les scripts externes | non applicable : aucun script externe | à réévaluer à chaque lot |
 | Injection SQL ou NoSQL, limitation de débit, relais ouvert | non applicable : aucune API ni base exposée | lot 5 si un back-end est retenu |
 | Validation des paramètres d'URL de partage | non applicable : pas encore de partage par URL | lot 1b |

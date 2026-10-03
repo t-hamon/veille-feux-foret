@@ -23,7 +23,7 @@ Les contrôles de sécurité (gitleaks, semgrep, bandit, zizmor, OWASP ZAP) sont
 
 ## Résultats du lot 1a
 
-Exécution locale du 1er octobre 2026, sur la branche `lot-1a/socle-ci`. Les résultats de la CI GitHub seront ajoutés dans la pull request dès le premier passage.
+Exécutions du 1er au 3 octobre 2026 sur la branche `lot-1a/socle-ci` : espace de développement, poste Windows du mainteneur et CI GitHub.
 
 ### Pipeline Python (Python 3.11)
 
@@ -88,6 +88,15 @@ En présence de `Cross-Origin-Opener-Policy`, la simulation du thème posée ava
 
 ### Intégration continue (GitHub Actions, Linux)
 
-Run du 1er octobre 2026 sur le commit `1f5326f` : pipeline, web, Lighthouse et end-to-end (Chromium, Firefox, WebKit, desktop et mobile) réussis.
+Run final du 3 octobre 2026 sur le commit `4cf6186` :
+
+| Job | Résultat |
+|---|---|
+| Pipeline (Python) : ruff, mypy, pytest, bandit, pip-audit, outils CI | réussi |
+| Web : Prettier, ESLint, tsc, Vitest, build, budget de poids, npm audit | réussi |
+| End-to-end dans l'image `mcr.microsoft.com/playwright:v1.63.0-noble`, 5 profils (Chromium, Firefox, WebKit, desktop et mobile), build servi par wrangler | 52 réussis, 3 ignorés volontairement (navigation clavier sur les profils mobiles et WebKit), en 32 secondes |
+| Lighthouse CI | seuils atteints (performance et bonnes pratiques 0,9, accessibilité 0,95) |
+
+Avant le passage à l'image Playwright, l'installation des navigateurs sur le runner prenait de 51 secondes à plus de 28 minutes selon les runs ; le job complet prend désormais environ 1 min 20.
 
 Lighthouse a été lancé localement avec `--no-sandbox`, l'espace de développement tournant en root. La CI le lance sans cette option.

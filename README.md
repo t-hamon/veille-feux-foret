@@ -10,7 +10,7 @@ Le projet est construit par lots, chacun livré par une ou plusieurs pull reques
 
 | Lot | Contenu | État |
 |---|---|---|
-| 1a | Dépôt, intégration continue, contrôles de sécurité, capture de fixtures | en cours |
+| 1a | Dépôt, intégration continue, contrôles de sécurité, capture de fixtures | en revue (PR n°1) |
 | 1b | Carte, foyers FIRMS, périmètres EFFIS, frise temporelle, déploiement | à venir |
 | 2 | Prévision : vent, météo AROME, propagation | à venir |
 | 3 | Imagerie et temps : comparaison, imagerie, relief 3D, fumée | à venir |
