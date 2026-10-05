@@ -7,39 +7,111 @@
     <meta name="color-scheme" content="light dark" />
     <meta
       name="description"
-      content="Carte citoyenne des feux de forêt en France métropolitaine. Outil d'information, pas une source officielle."
+      content="Carte citoyenne des feux de forêt en France métropolitaine : foyers détectés par satellite et surfaces brûlées. Outil d'information, pas une source officielle."
     />
     <title>Veille feux de forêt</title>
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
     <script type="module" src="/src/main.ts"></script>
   </head>
   <body>
-    <a class="skip-link" href="#contenu">Aller au contenu</a>
+    <a class="skip-link" href="#contenu">Aller au tableau de situation</a>
     <header class="site-header">
       <p class="site-title">Veille feux de forêt</p>
       <button id="theme-toggle" type="button" class="theme-toggle">Thème : automatique</button>
     </header>
 
-    <main id="contenu" tabindex="-1">
-      <h1>Carte citoyenne des feux de forêt en France</h1>
-      <p class="lead">
-        Foyers détectés par satellite, périmètres brûlés, vent et prévision à quelques heures,
-        imagerie et lecture dans le temps.
+    <aside class="warning" aria-labelledby="avertissement-titre">
+      <h2 id="avertissement-titre" class="visually-hidden">Avertissement</h2>
+      <p>
+        Outil d'information citoyenne, pas un outil opérationnel ni une source officielle : seules
+        les consignes des préfectures et des services de secours font foi.
+        <strong class="emergency"
+          >En cas d'urgence, appelez le <a href="tel:18">18</a> ou le
+          <a href="tel:112">112</a>.</strong
+        >
       </p>
+    </aside>
 
-      <aside class="warning" aria-labelledby="avertissement-titre">
-        <h2 id="avertissement-titre">Avertissement</h2>
-        <p>
-          Outil d'information citoyenne, pas un outil opérationnel ni une source officielle. Seules
-          les consignes des préfectures et des services de secours font foi.
-        </p>
-        <p class="emergency">
-          En cas d'urgence, appelez le <a href="tel:18">18</a> ou le <a href="tel:112">112</a>.
-        </p>
-      </aside>
+    <div class="layout">
+      <main id="contenu" class="panel" tabindex="-1">
+        <h1>Feux de forêt en France métropolitaine</h1>
+        <section class="block" aria-labelledby="etat-titre">
+          <h2 id="etat-titre">État des données</h2>
+          <div id="etat" class="status">Chargement des données…</div>
+        </section>
 
-      <p class="status">La carte sera disponible dans une prochaine version.</p>
-    </main>
+        <section class="block" aria-labelledby="detail-titre">
+          <h2 id="detail-titre">Détail</h2>
+          <div id="detail" class="detail" aria-live="polite">
+            <p class="muted">
+              Choisissez un foyer dans la liste ou sur la carte pour afficher son détail.
+            </p>
+          </div>
+        </section>
+
+        <section class="block" aria-labelledby="foyers-titre">
+          <h2 id="foyers-titre">Foyers</h2>
+          <div id="foyers"></div>
+        </section>
+
+        <section class="block" aria-labelledby="bilan-titre">
+          <h2 id="bilan-titre">Bilan de la saison</h2>
+          <div id="bilan"></div>
+        </section>
+
+        <section class="block" aria-labelledby="sources-titre">
+          <h2 id="sources-titre">Sources</h2>
+          <ul class="sources">
+            <li>
+              Foyers : détections de points chauds
+              <a href="https://firms.modaps.eosdis.nasa.gov/">NASA FIRMS</a> (VIIRS et MODIS),
+              regroupées en foyers par ce site. Une détection est une anomalie thermique vue par un
+              satellite, pas forcément un feu de forêt.
+            </li>
+            <li>
+              Surfaces brûlées :
+              <a href="https://forest-fire.emergency.copernicus.eu/">Copernicus EFFIS</a>
+              (Commission européenne, Centre commun de recherche), licence CC BY 4.0.
+            </li>
+            <li>Fond de carte : voir les mentions affichées sous la carte.</li>
+          </ul>
+        </section>
+      </main>
+
+      <section class="map-area" aria-labelledby="carte-titre">
+        <h2 id="carte-titre" class="visually-hidden">Carte</h2>
+        <div class="map-toolbar">
+          <label class="field">
+            <span>Fond de carte</span>
+            <select id="fond">
+              <option value="ign">Plan IGN (gris)</option>
+              <option value="osm">OpenStreetMap (OpenFreeMap)</option>
+            </select>
+          </label>
+          <fieldset class="layers">
+            <legend>Couches</legend>
+            <label><input type="checkbox" id="couche-foyers" checked /> Foyers</label>
+            <label><input type="checkbox" id="couche-detections" checked /> Détections</label>
+            <label><input type="checkbox" id="couche-brule" /> Surfaces brûlées</label>
+          </fieldset>
+        </div>
+        <div id="carte" class="map">
+          <p class="map-message" id="carte-message">Chargement de la carte…</p>
+        </div>
+        <div id="notice" class="map-notice" hidden></div>
+        <div class="timeline" id="frise" hidden>
+          <button type="button" id="lecture" class="button">Lire</button>
+          <label class="timeline-slider">
+            <span class="visually-hidden">Instant affiché</span>
+            <input type="range" id="instant" min="0" max="168" step="1" value="168" />
+          </label>
+          <output id="instant-texte" for="instant"></output>
+          <button type="button" id="maintenant" class="button">Dernière mise à jour</button>
+        </div>
+        <div class="legend" id="legende" aria-label="Légende"></div>
+        <p class="attribution" id="attribution"></p>
+      </section>
+    </div>
 
     <footer class="site-footer">
       <p>

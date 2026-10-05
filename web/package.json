@@ -17,7 +17,8 @@
     "test": "vitest run --coverage",
     "test:e2e": "playwright test",
     "size": "node scripts/bundle-size.mjs",
-    "serve": "wrangler dev --ip 127.0.0.1 --port 8787"
+    "serve": "wrangler dev --ip 127.0.0.1 --port 8787",
+    "captures": "node scripts/captures.mjs"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
