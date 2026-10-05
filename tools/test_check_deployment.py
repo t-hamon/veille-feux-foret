@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import io
 import json
+import urllib.error
+import urllib.request
 from email.message import Message
 from pathlib import Path
 
@@ -93,8 +96,8 @@ def test_exposed_headers_file_and_spa_fallback_fail() -> None:
         }
     )
     problems = cd.check(get, SITE, "2026-10-05T10:00:00Z", no_sleep)
-    assert "/_headers: HTTP 200, 404 expected" in problems
-    assert "/nexiste-pas: HTTP 200, 404 expected" in problems
+    assert "/_headers: HTTP 200 (body: '/*'), 404 expected" in problems
+    assert "/nexiste-pas: HTTP 200 (body: '<html>'), 404 expected" in problems
 
 
 def test_unreadable_status_file_counts_as_not_served() -> None:
@@ -116,6 +119,86 @@ def test_an_unreachable_site_fails_without_crashing() -> None:
     problems = cd.check(get, SITE, "2026-10-05T10:00:00Z", no_sleep)
     assert "page: HTTP 0" in problems
     assert len(problems) == 4
+
+
+def test_a_refusal_says_what_answered() -> None:
+    refused = cd.Answer(
+        403,
+        headers(
+            {
+                "server": "cloudflare",
+                "cf-ray": "a45d914d5a30d64a-CDG",
+                "content-type": "text/plain; charset=UTF-8",
+                "x-frame-options": "DENY",
+            }
+        ),
+        b"error code: 1010",
+    )
+    get = site(overrides={f"{SITE}/data/etat.json": refused, f"{SITE}/_headers": refused})
+    problems = cd.check(get, SITE, "2026-10-05T10:00:00Z", no_sleep)
+    details = (
+        "HTTP 403 (server: cloudflare; cf-ray: a45d914d5a30d64a-CDG; "
+        "content-type: text/plain; charset=UTF-8; body: 'error code: 1010')"
+    )
+    assert problems == [f"data: etat.json {details}", f"/_headers: {details}, 404 expected"]
+
+
+def test_the_body_excerpt_is_one_short_line() -> None:
+    body = ("<html>\n<title>Blocked</title>\x1b[31m" + "x" * 500).encode()
+    text = cd.describe(cd.Answer(503, headers({}), body))
+    assert "\n" not in text and "\x1b" not in text
+    assert text.startswith("HTTP 503 (body: '<html> <title>Blocked</title> [31mxxx")
+    excerpt = text.split("body: ", 1)[1]
+    assert len(excerpt) == cd.BODY_EXCERPT + 3  # two quotes and the closing parenthesis
+    assert excerpt.endswith("...')")
+
+
+def test_annotations_are_escaped() -> None:
+    assert cd.annotation("100% done\r\n::error::x") == "100%25 done%0D%0A::error::x"
+
+
+class FakeResponse:
+    status = 200
+    headers = Message()
+
+    def __enter__(self) -> FakeResponse:
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        return None
+
+    def read(self, size: int) -> bytes:
+        return b"{}"
+
+
+def test_requests_name_the_project(monkeypatch: pytest.MonkeyPatch) -> None:
+    sent: list[urllib.request.Request] = []
+
+    def fake_open(request: urllib.request.Request, timeout: float) -> FakeResponse:
+        sent.append(request)
+        return FakeResponse()
+
+    monkeypatch.setattr(cd._OPENER, "open", fake_open)
+    assert cd.http_get(f"{SITE}/data/etat.json").status == 200
+    assert sent[0].get_header("User-agent") == cd.USER_AGENT
+    assert "Python-urllib" not in cd.USER_AGENT
+    assert sent[0].get_header("Cache-control") == "no-cache"
+
+
+def test_an_http_error_keeps_the_start_of_its_body(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_open(request: urllib.request.Request, timeout: float) -> FakeResponse:
+        raise urllib.error.HTTPError(
+            request.full_url,
+            403,
+            "Forbidden",
+            headers({"server": "cloudflare"}),
+            io.BytesIO(b"error code: 1010"),
+        )
+
+    monkeypatch.setattr(cd._OPENER, "open", fake_open)
+    answer = cd.http_get(f"{SITE}/")
+    assert (answer.status, answer.body) == (403, b"error code: 1010")
+    assert cd.describe(answer) == "HTTP 403 (server: cloudflare; body: 'error code: 1010')"
 
 
 def test_only_https_is_fetched() -> None:

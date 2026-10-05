@@ -65,7 +65,7 @@ jobs:
             if ! curl --fail --silent --show-error --proto '=https' --max-time 60 \
                  --max-filesize 62914560 --output "previous/$name" "$SITE_URL/data/$name"; then
               rm -f "previous/$name"
-              echo "No previous $name"
+              echo "::notice title=Previous data::$name could not be read from the deployed site"
             fi
           done
       - name: Build the data
