@@ -19,10 +19,12 @@ concurrency:
 env:
   PIP_UPLOADED_PRIOR_TO: P7D
 
+# Runners are pinned to Ubuntu 24.04: ubuntu-latest moves to Ubuntu 26 from
+# 19 October 2026, and a runner change should come in its own pull request.
 jobs:
   capture:
     name: Capture source samples
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
       contents: write # push the review branch with the captured samples
