@@ -1,10 +1,10 @@
 # HTTP response headers applied by Cloudflare to every static file.
-# The CSP repeats the policy of the meta tag and adds frame-ancestors, which only
-# works as a header. Cross-origin isolation (COOP, COEP, CORP) is strict while the
-# site loads nothing from other origins; it will be revisited in lot 1b, when map
-# tiles from other domains are added.
+# The CSP repeats the policy of the meta tag (vite.config.ts) and adds
+# frame-ancestors, which only works as a header; a test checks that both match.
+# Cross-origin isolation stays strict (COEP require-corp): the only cross-origin
+# requests are the base map files, fetched with CORS, which both servers allow.
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self'; worker-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://data.geopf.fr https://tiles.openfreemap.org; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY
   Referrer-Policy: strict-origin-when-cross-origin

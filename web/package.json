@@ -39,5 +39,8 @@
     "miniflare": {
       "undici": "7.29.1"
     }
+  },
+  "dependencies": {
+    "maplibre-gl": "^6.11.2"
   }
 }
