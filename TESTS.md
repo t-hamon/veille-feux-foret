@@ -30,7 +30,7 @@ Exécution du 3 octobre 2026 dans l'espace de développement, branche `lot-1b/do
 |---|---|
 | ruff, mypy strict (pipeline et outils) | aucun problème |
 | pytest | 106 tests réussis, couverture 97 % |
-| Chaque commit de la branche pris isolément : ruff, mypy, pytest | réussi pour chacun des 11 commits |
+| Chaque commit de la branche pris isolément : ruff, mypy, pytest | réussi pour chacun des 11 premiers commits ; le 12e, ajouté après la première CI, ne touche que le workflow de sécurité et SECURITY.md (voir plus bas) |
 | bandit | aucun problème |
 | pip-audit, environnement contenant uniquement les dépendances du projet | aucune vulnérabilité connue |
 | Installation non éditable du paquet (celle du workflow de capture) | les 3 fichiers de données et les 2 commandes sont présents |
@@ -52,6 +52,41 @@ Mesures sur la capture réelle du 3 octobre 2026, 11 h 28 UTC :
 | Poids des fichiers produits, compressés | moins de 400 Kio, dont 383 Kio de surfaces brûlées |
 
 Ces mesures ont été obtenues en servant les fichiers capturés à la commande à la place des sources. La collecte réelle depuis les serveurs sera exercée par le workflow de déploiement (partie 3 du lot).
+
+### Intégration continue (GitHub Actions, Linux)
+
+Le premier passage, sur le commit `05363b0`, a échoué sur semgrep : la règle `python37-compatibility-importlib2` signalait que `importlib.resources` demande Python 3.7 ou plus, alors que le pipeline exige Python 3.11. La règle est exclue par son identifiant (voir SECURITY.md) ; vérification locale avec semgrep 1.178.0 : le scan échoue sans l'exclusion et passe avec.
+
+Run final du 5 octobre 2026 sur le commit `07112b1`, fusionné dans `main` (PR #3) :
+
+| Job | Résultat |
+|---|---|
+| Pipeline (Python) : ruff, mypy, pytest, bandit, pip-audit, outils CI | réussi |
+| Web : Prettier, ESLint, tsc, Vitest, build, budget de poids, npm audit | réussi |
+| End-to-end, 5 profils (Chromium, Firefox, WebKit, desktop et mobile) | 52 réussis, 3 ignorés volontairement, en 32 secondes |
+| Lighthouse CI | seuils atteints |
+| gitleaks, semgrep, zizmor | aucun résultat |
+| OWASP ZAP baseline | réussi ; seule alerte : 10049, informative, ignorée avec justification |
+
+### Deuxième capture réelle, 5 octobre 2026
+
+Le workflow **Capture fixtures** a été relancé après la fusion (run 37297343469, 10 h 33 UTC) : les 8 sources ont répondu, dont la recherche de commune de geo.api.gouv.fr, interrogée pour la première fois depuis la CI (réponse : Aix-en-Provence, code 13001, pour le point d'essai). La licence enregistrée dans le manifeste est celle vérifiée dans la PR #3.
+
+La commande de construction a été rejouée dans l'espace de développement sur cette capture, de la même façon que sur la première : fichiers capturés servis à la place des sources, flux FIRMS de 24 h servis à la place des flux de 7 jours.
+
+| Étape | Résultat |
+|---|---|
+| Détections FIRMS en Europe sur 24 h | 6 311, toutes lues sans erreur |
+| Dans la métropole | 193 |
+| Écartées comme sites industriels | 152 (Dunkerque, Fos-sur-Mer, raffineries, cimenteries, Florange) |
+| Détections conservées, foyers | 41 détections, 5 foyers |
+| Surfaces brûlées EFFIS datées, françaises | 1 690 sur 3 103 ; 6 écartées car de surface nulle selon EFFIS |
+| Surfaces brûlées EFFIS récentes touchant la France | 2 626 sur 5 081 |
+| Bilan de la saison | 97 971 ha, moyenne depuis 2006 : 14 198 ha, dernière semaine comptée : 30 septembre |
+| Durée de la commande | 12,5 s |
+| Poids des fichiers produits, compressés | 388 Kio, dont 386 Kio de surfaces brûlées |
+
+Limite constatée : 4 des 5 foyers sont à moins de 0,5 km d'un foyer de la capture du 3 octobre. Une chaleur détectée au même endroit à deux jours d'intervalle évoque une source permanente plutôt qu'un feu, mais ces sites ne sont pas identifiés à ce stade et aucun n'a été ajouté à la liste des sites industriels sans vérification.
 
 ## Résultats du lot 1a
 
