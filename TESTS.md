@@ -58,6 +58,37 @@ Une relecture indépendante de la branche a relevé des défauts, tous corrigés
 
 Vérifications faites hors des tests automatisés, depuis un navigateur, le 5 octobre 2026 : `data.geopf.fr` et `tiles.openfreemap.org` répondent aux requêtes CORS de MapLibre (style, tuiles, glyphes, sprite) ; le sprite « @2x » du Plan IGN gris répond 404, d'où le recours au sprite simple.
 
+### Intégration continue de la partie 2 (GitHub Actions, Linux)
+
+Run final du 5 octobre 2026 sur le commit `8980eee`, fusionné dans `main` (PR #6) :
+
+| Job | Résultat |
+|---|---|
+| Pipeline (Python), Web (lint, types, tests unitaires, build, budget de poids, npm audit) | réussis |
+| End-to-end, 5 profils (Chromium, Firefox, WebKit, desktop et mobile) | 179 réussis, 6 ignorés : 3 volontairement (clavier sur mobile et WebKit), 3 scénarios qui demandent WebGL 2, absent sur un des profils de la CI ; le rapport de la CI ne dit pas lequel. Ces 3 scénarios passent sur les 5 profils du poste Windows. |
+| Lighthouse, 3 passages | seuils bloquants tenus : premier contenu 0,9 à 1,0 s, plus grand contenu 1,0 à 1,3 s, décalage 0, accessibilité, bonnes pratiques et SEO à 1. Avertissements : performance 0,68 à 0,70, temps de blocage 3,2 à 5,2 s |
+| gitleaks, semgrep, zizmor | aucun résultat |
+| OWASP ZAP baseline | réussi ; seule alerte : 10049, informative, ignorée avec justification |
+
+L'allègement du rendu de la carte n'a pas réduit le temps de blocage mesuré par la CI (3,6 à 4,9 s avant, 3,2 à 5,2 s après). Il sera mesuré sur le site déployé.
+
+## Résultats du lot 1b, partie 3 : mise à jour et déploiement
+
+Exécution du 5 octobre 2026 dans l'espace de développement, branche `lot-1b/deploiement`. Le déploiement lui-même ne peut être exercé que par le workflow, sur `main` : ses résultats seront consignés après le premier run.
+
+Une relecture indépendante du workflow a relevé des défauts, corrigés avant la livraison : jeton Cloudflare présent sur la même machine que l'outillage npm (le workflow est désormais en deux jobs), fichier précédent mal formé qui bloquait toutes les constructions suivantes, date future qui figeait une source, message d'erreur repris sans contrôle dans le journal, délais cumulés des sources supérieurs à la durée du job, documentation inexacte sur quelques points.
+
+| Test | Résultat |
+|---|---|
+| `tools/check_deployment.py` : déploiement correct, données anciennes encore servies, en-têtes manquants ou affaiblis, fichier `_headers` exposé, repli vers `index.html`, fichier d'état illisible, site injoignable, HTTP refusé | 8 tests réussis ; les en-têtes attendus sont relus dans `web/public/_headers` |
+| Annotation de l'état des sources (`tools/ci_annotations.py status`) | test réussi |
+| Outils : ruff, mypy strict, pytest | aucun problème, 18 tests réussis |
+| Pipeline : construction face à des fichiers précédents piégés (surface brûlée `null`, date de mise à jour en 2099, détections illisibles, message d'erreur sur plusieurs lignes) | 4 nouveaux tests réussis ; au total ruff, mypy, 110 tests, couverture 97 % |
+| zizmor sur les 4 workflows, dont `deploy.yml` en deux jobs | aucun résultat |
+| `wrangler deploy --dry-run` avec la configuration du dépôt, dépendances installées avec `npm ci --ignore-scripts` comme dans le job de déploiement | configuration lue, fichiers du build listés, aucune liaison |
+| Build servi par wrangler avec les données réelles du 5 octobre (`dist/data`) | `etat.json` servi avec `Cache-Control: no-cache` et la politique de sécurité ; `_headers` en 404 ; la page affiche 5 foyers et 41 détections ; les 4 316 surfaces brûlées se chargent en 0,3 s, aucune écartée ; aucune erreur dans la console |
+| Vitest, Playwright Chromium desktop et mobile | 54 tests réussis ; 73 scénarios réussis, 1 ignoré volontairement |
+
 ## Résultats du lot 1b, partie 1 : données
 
 Exécution du 3 octobre 2026 dans l'espace de développement, branche `lot-1b/donnees`, Python 3.11.
