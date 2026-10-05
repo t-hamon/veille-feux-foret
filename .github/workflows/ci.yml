@@ -12,10 +12,18 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# pip skips any release uploaded less than seven days ago, like npm with
+# min-release-age in web/.npmrc. The setting needs pip 26.0 or later and older
+# versions ignore it, so each job first installs a pinned pip.
+env:
+  PIP_UPLOADED_PRIOR_TO: P7D
+
+# Runners are pinned to Ubuntu 24.04: ubuntu-latest moves to Ubuntu 26 from
+# 19 October 2026, and a runner change should come in its own pull request.
 jobs:
   pipeline:
     name: Pipeline (Python)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     defaults:
       run:
@@ -29,7 +37,8 @@ jobs:
           python-version: "3.12"
       - name: Install
         run: |
-          python -m pip install --upgrade pip setuptools
+          python -m pip install pip==26.2.1
+          python -m pip install --upgrade setuptools
           python -m pip install -e ".[dev]"
       - name: Lint
         run: ruff check . && ruff format --check .
@@ -50,7 +59,7 @@ jobs:
 
   web:
     name: Web (lint, types, unit tests, build)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     defaults:
       run:
@@ -88,7 +97,7 @@ jobs:
   e2e:
     name: End-to-end (Chromium, Firefox, WebKit)
     needs: web
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     # Official Playwright image, as documented by Playwright: the three browsers
     # and their system libraries are preinstalled. Installing them on the runner
@@ -132,7 +141,7 @@ jobs:
   lighthouse:
     name: Lighthouse
     needs: web
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     defaults:
       run:

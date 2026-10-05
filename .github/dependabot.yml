@@ -18,6 +18,12 @@ updates:
     cooldown:
       default-days: 7
     open-pull-requests-limit: 5
+    ignore:
+      # typescript-eslint accepts TypeScript below 6.1 only (peer dependency
+      # ">=4.8.4 <6.1.0" up to 8.71), so a TypeScript 7 update cannot install.
+      # Remove this entry once a typescript-eslint release accepts TypeScript 7.
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: pip
     directory: "/pipeline"
     schedule:
