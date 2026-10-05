@@ -1,4 +1,4 @@
-"""Turn semgrep, OWASP ZAP and Lighthouse CI reports into GitHub Actions annotations.
+"""Turn semgrep, OWASP ZAP, Lighthouse CI and data status reports into GitHub annotations.
 
 Job logs are hard to reach outside the GitHub interface, while annotations
 are shown on the pull request and are available through the checks API.
@@ -128,9 +128,31 @@ def lighthouse_annotations(folder: Path) -> Iterator[str]:
             )
 
 
+def status_annotations(report: dict[str, Any]) -> Iterator[str]:
+    """etat.json written by the data build: one warning per source in failure."""
+    sources = report.get("sources", {})
+    failed = 0
+    for source_id, entry in sources.items():
+        if entry.get("ok"):
+            continue
+        failed += 1
+        last = entry.get("updated_at") or "never"
+        yield command(
+            "warning",
+            f"{entry.get('label', source_id)}: {entry.get('error')} (last data: {last})",
+            title=f"Source {source_id}",
+        )
+    yield command(
+        "notice",
+        f"{len(sources) - failed} of {len(sources)} sources answered;"
+        f" data files: {', '.join(report.get('files', []))}",
+        title=f"Data generated at {report.get('generated_at')}",
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("kind", choices=["semgrep", "zap", "lighthouse"])
+    parser.add_argument("kind", choices=["semgrep", "zap", "lighthouse", "status"])
     parser.add_argument("report", type=Path, help="JSON report, or the .lighthouseci folder")
     args = parser.parse_args(argv)
     if args.kind == "lighthouse":
@@ -144,7 +166,12 @@ def main(argv: list[str] | None = None) -> int:
         print(command("warning", f"report not found: {args.report}"))
         return 0
     report = json.loads(args.report.read_text(encoding="utf-8"))
-    lines = semgrep_annotations(report) if args.kind == "semgrep" else zap_annotations(report)
+    readers = {
+        "semgrep": semgrep_annotations,
+        "zap": zap_annotations,
+        "status": status_annotations,
+    }
+    lines = readers[args.kind](report)
     for line in lines:
         print(line)
     return 0

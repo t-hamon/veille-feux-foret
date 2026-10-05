@@ -132,3 +132,26 @@ def test_missing_lighthouse_folder_is_a_warning(
 ) -> None:
     assert ca.main(["lighthouse", str(tmp_path / "absent")]) == 0
     assert capsys.readouterr().out.startswith("::warning::report folder not found")
+
+
+def test_failed_sources_of_the_data_status_become_warnings() -> None:
+    report = {
+        "generated_at": "2026-10-05T10:00:00Z",
+        "files": ["etat.json", "detections.geojson"],
+        "sources": {
+            "firms_modis": {"label": "NASA FIRMS, MODIS", "ok": True},
+            "effis_nrt": {
+                "label": "EFFIS, NRT",
+                "ok": False,
+                "error": "URLError: timed out",
+                "updated_at": "2026-10-05T04:00:00Z",
+            },
+        },
+    }
+    lines = list(ca.status_annotations(report))
+    assert lines[0] == (
+        "::warning title=Source effis_nrt::EFFIS, NRT: URLError: timed out"
+        " (last data: 2026-10-05T04:00:00Z)"
+    )
+    assert lines[1].startswith("::notice title=Data generated at 2026-10-05T10%3A00%3A00Z::")
+    assert lines[1].endswith("1 of 2 sources answered; data files: etat.json, detections.geojson")
