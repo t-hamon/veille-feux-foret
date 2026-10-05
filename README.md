@@ -11,13 +11,13 @@ Le projet est construit par lots, chacun livré par une ou plusieurs pull reques
 | Lot | Contenu | État |
 |---|---|---|
 | 1a | Dépôt, intégration continue, contrôles de sécurité, capture de fixtures | fusionné (PR n°1) |
-| 1b | Carte, foyers FIRMS, périmètres EFFIS, frise temporelle, déploiement | données fusionnées (PR n°3) ; carte en revue ; déploiement à venir |
+| 1b | Carte, foyers FIRMS, périmètres EFFIS, frise temporelle, déploiement | données et carte fusionnées (PR n°3 et n°6) ; déploiement en revue |
 | 2 | Prévision : vent, météo AROME, propagation | à venir |
 | 3 | Imagerie et temps : comparaison, imagerie, relief 3D, fumée | à venir |
 | 4 | Situation : score de menace, danger Météo-France, moyens aériens, enjeux exposés | à venir |
 | 5 | Fil d'information et archive | à venir |
 
-La démo en ligne arrive avec le déploiement, dernière partie du lot 1b. La comparaison détaillée avec les projets d'origine sera faite à la fin du lot 1b.
+La démo en ligne sera indiquée ici après le premier déploiement réussi, dernière partie du lot 1b. La comparaison détaillée avec les projets d'origine sera faite à la fin du lot 1b.
 
 ## Ce que montre la carte
 
@@ -42,9 +42,18 @@ fixtures/   échantillons réels des sources, utilisés par les tests
 .github/    intégration continue, contrôles de sécurité, capture des fixtures
 ```
 
-Le pipeline tourne dans GitHub Actions et produit des fichiers statiques que l'application lit : la commande `veille-feux-build` collecte les détections FIRMS des 7 derniers jours, les regroupe en foyers, lit les surfaces brûlées et le bilan de la saison publiés par EFFIS, et écrit un fichier d'état de chaque source. Quand une source ne répond pas, la commande reprend les fichiers du déploiement précédent et les signale comme anciens : une panne ne vide jamais la carte et ne fait jamais passer une donnée ancienne pour récente. Le site sera servi par Cloudflare Workers en fichiers statiques : les requêtes y sont gratuites et sans plafond, ce qui garde le site disponible lors des pics de consultation pendant les grands feux, et les en-têtes de sécurité sont définis dans `web/public/_headers`. En local, `npm run serve` sert le build avec le même moteur (wrangler) et les mêmes en-têtes. Aucun serveur n'est nécessaire tant que les lots 1 à 4 le permettent ; le besoin d'un back-end sera tranché avant le lot 5.
+Le pipeline tourne dans GitHub Actions et produit des fichiers statiques que l'application lit : la commande `veille-feux-build` collecte les détections FIRMS des 7 derniers jours, les regroupe en foyers, lit les surfaces brûlées et le bilan de la saison publiés par EFFIS, et écrit un fichier d'état de chaque source. Quand une source ne répond pas, la commande reprend les fichiers du déploiement précédent et les signale comme anciens : une panne ne vide jamais la carte et ne fait jamais passer une donnée ancienne pour récente. Le site est servi par Cloudflare Workers en fichiers statiques : les requêtes y sont gratuites et sans plafond, ce qui garde le site disponible lors des pics de consultation pendant les grands feux, et les en-têtes de sécurité sont définis dans `web/public/_headers`. En local, `npm run serve` sert le build avec le même moteur (wrangler) et les mêmes en-têtes. Aucun serveur n'est nécessaire tant que les lots 1 à 4 le permettent ; le besoin d'un back-end sera tranché avant le lot 5.
 
 Dans le navigateur, la page lit les fichiers de `data/` (état, détections, foyers, emprises, bilan ; surfaces brûlées à la demande), vérifie chaque entrée et affiche l'état, la liste des foyers et le bilan avant même que la carte soit chargée. La carte (MapLibre GL JS) est chargée ensuite ; ses tuiles viennent directement des serveurs de l'IGN ou d'OpenFreeMap. MapLibre est publié tel quel dans le build, une seule fois pour la page et son worker.
+
+## Mise à jour et déploiement
+
+Le workflow **Deploy** (`.github/workflows/deploy.yml`) tourne toutes les 30 minutes (à 7 et 37 minutes de chaque heure), à chaque fusion dans `main` et à la demande depuis l'onglet Actions. Il a deux jobs :
+
+1. **construction**, sans aucun secret : relecture des fichiers de données du site déployé, pour les reprendre si une source ne répond pas (seuls les fichiers bien formés sont repris) ; collecte des sources et construction des données (`veille-feux-build`), avec l'état de chaque source publié en annotation du run ; construction du site avec ses données ;
+2. **déploiement**, dans l'environnement GitHub `production` qui n'accepte que la branche `main` et seul à recevoir les identifiants Cloudflare : installation de wrangler sans exécuter aucun script d'installation, déploiement sur Cloudflare Workers (`wrangler deploy`), puis vérification du site déployé (`tools/check_deployment.py`) : fichier d'état servi identique à celui qui vient d'être construit, en-têtes de sécurité présents, chemins inconnus et fichier `_headers` en 404.
+
+Si aucune détection n'est disponible, ni fraîche ni reprise, le run échoue avant le déploiement : le site garde sa version précédente. Chaque source a un délai de réponse limité, pour que la construction ne dépasse pas une dizaine de minutes même si toutes les sources traînent. L'adresse `veille-feux-foret.hamonthibaud.workers.dev` suppose que le sous-domaine `hamonthibaud.workers.dev` du compte Cloudflare existe déjà, ce qui est le cas.
 
 ## Développement
 
@@ -111,7 +120,9 @@ Détail des éléments repris, sources de données et licences : [CREDITS.md](CR
 
 ## Limites connues
 
-- Le déploiement sur Cloudflare et la mise à jour automatique des données toutes les 30 minutes arrivent avec la dernière partie du lot 1b. D'ici là, le build ne contient pas de données et la page l'indique.
+- La mise à jour dépend des tâches planifiées de GitHub Actions : elles peuvent partir avec plusieurs minutes de retard, voire être sautées aux heures chargées, et GitHub les désactive dans un dépôt public resté 60 jours sans activité. La page signale alors des données en retard, puis anciennes.
+- Si la vérification qui suit un déploiement échoue, la version déployée reste en ligne : il n'y a pas de retour automatique à la précédente. Le run échoue et GitHub prévient le mainteneur par courriel.
+- Un commit poussé sur `main` est déployé sans attendre la CI de ce commit : seules des PR dont la CI est passée sont fusionnées dans `main`.
 - Une détection FIRMS est une anomalie thermique vue par satellite, pas forcément un feu de forêt. Les sites industriels connus sont écartés, mais la liste n'est pas complète : sur deux captures à deux jours d'intervalle, 4 des 5 foyers se trouvaient au même endroit, ce qui évoque des sources de chaleur permanentes non encore identifiées.
 - La surface estimée d'un foyer découle de la taille des pixels détectés : c'est un ordre de grandeur, pas une mesure.
 - Les foyers sont calculés à chaque mise à jour : en remontant la frise, la carte masque les foyers pas encore apparus, mais leur composition reste celle de la dernière mise à jour.
