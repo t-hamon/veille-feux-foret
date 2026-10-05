@@ -335,6 +335,11 @@ export async function createMap(options: MapOptions): Promise<MapHandle> {
       attributionControl: false,
       locale: LOCALE,
       dragRotate: false,
+      // Lighter rendering: no fade of labels (each fade redraws the map for
+      // 300 ms), and no more than two device pixels per CSS pixel, which
+      // already looks sharp and spares phones with denser screens.
+      fadeDuration: 0,
+      pixelRatio: Math.min(window.devicePixelRatio || 1, 2),
       pitchWithRotate: false,
       transformRequest: (url) => ({ url: rewriteUrl(url) }),
     });
