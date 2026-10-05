@@ -6,6 +6,7 @@ on:
     branches: [main]
   schedule:
     - cron: "17 5 * * 1"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -120,6 +121,30 @@ jobs:
           allow_issue_writing: false
           fail_action: true
           artifact_name: zap-baseline
+      - name: Report alerts as annotations
+        if: ${{ !cancelled() }}
+        run: python3 tools/ci_annotations.py zap report_json.json
+
+  zap-deployed:
+    name: OWASP ZAP baseline (deployed site)
+    # Weekly and by hand only: the scan targets this project's own deployment,
+    # never another site, and is not repeated on every pull request.
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: ZAP baseline scan
+        uses: zaproxy/action-baseline@de8ad967d3548d44ef623df22cf95c3b0baf8b25 # v0.15.0
+        with:
+          # Same address as SITE_URL in deploy.yml.
+          target: "https://veille-feux-foret.hamonthibaud.workers.dev"
+          rules_file_name: ".zap/rules.tsv"
+          allow_issue_writing: false
+          fail_action: true
+          artifact_name: zap-deployed
       - name: Report alerts as annotations
         if: ${{ !cancelled() }}
         run: python3 tools/ci_annotations.py zap report_json.json
