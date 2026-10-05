@@ -14,8 +14,9 @@ La liste des sources est fixée dans le code : le workflow n'accepte aucun param
 
 ## Organisation
 
-- `raw/<horodatage>/` : réponses brutes d'une capture, telles que reçues.
-- Les fixtures utilisées par les tests sont des extraits de ces captures, choisis et réduits dans la pull request du lot concerné. Chaque extrait garde la référence de la capture d'origine.
+- Les captures brutes restent sur leur branche `fixtures/capture-<identifiant du run>`, sur GitHub : elles pèsent plusieurs dizaines de Mo et ne sont pas fusionnées dans `main`.
+- Les fixtures utilisées par les tests sont dans `pipeline/tests/fixtures/<horodatage de la capture>/`. Ce sont des copies ou des extraits réduits des captures brutes ; leur provenance exacte est décrite dans le `README.md` de ce dossier.
+- Un extrait est produit par un script versionné et reproductible (`tools/extract_effis_fixtures.py`), jamais à la main.
 
 ## Licences des échantillons
 
@@ -23,3 +24,4 @@ La liste des sources est fixée dans le code : le workflow n'accepte aucun param
 |---|---|---|
 | NASA FIRMS (VIIRS, MODIS) | politique de données ouvertes de la NASA | citation demandée et lien vers l'avertissement LANCE |
 | Copernicus EFFIS | CC BY 4.0 | crédit à EFFIS (Commission européenne, Centre commun de recherche) et mention des modifications |
+| geo.api.gouv.fr (recherche de commune) | Licence Ouverte (Etalab) | INSEE (Code officiel géographique) et IGN (ADMIN EXPRESS), avec la date de la donnée |

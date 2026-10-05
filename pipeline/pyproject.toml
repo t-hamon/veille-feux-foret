@@ -22,9 +22,13 @@ dev = [
 
 [project.scripts]
 veille-feux-capture = "veille_feux.capture:main"
+veille-feux-build = "veille_feux.build:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+veille_feux = ["data/*.json", "data/*.geojson"]
 
 [tool.ruff]
 line-length = 100

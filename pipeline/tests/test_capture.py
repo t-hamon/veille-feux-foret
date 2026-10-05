@@ -2,34 +2,18 @@ from __future__ import annotations
 
 import datetime as dt
 import gzip
-import io
 import json
-import urllib.request
 from pathlib import Path
 from typing import Any
 
 import pytest
 
+from tests.helpers import make_opener
 from veille_feux import capture
-from veille_feux.capture import CaptureError, Source
+from veille_feux.capture import Source
+from veille_feux.http import check_url
 
 NOW = dt.datetime(2026, 8, 1, 12, 0, tzinfo=dt.UTC)
-
-
-class FakeResponse(io.BytesIO):
-    def __init__(self, body: bytes, status: int = 200) -> None:
-        super().__init__(body)
-        self.status = status
-
-
-def make_opener(bodies: dict[str, bytes | Exception]) -> capture.Opener:
-    def opener(request: urllib.request.Request, timeout: float) -> Any:
-        result = bodies[request.full_url]
-        if isinstance(result, Exception):
-            raise result
-        return FakeResponse(result)
-
-    return opener
 
 
 def source(url: str, max_bytes: int = 1024, source_id: str = "s") -> Source:
@@ -41,43 +25,26 @@ FIRMS_URL = "https://firms.modaps.eosdis.nasa.gov/data/active_fire/x.csv"
 
 def test_default_sources_are_all_allowed() -> None:
     sources = capture.default_sources(NOW.date())
-    assert len(sources) == 7
-    assert len({s.id for s in sources}) == 7
+    assert len(sources) == 8
+    assert len({s.id for s in sources}) == 8
     for s in sources:
-        capture.check_url(s.url)
+        check_url(s.url)
     stats = next(s for s in sources if s.id == "effis_weekly_stats")
     assert "year=2026" in stats.url
     assert "country=FRA" in stats.url
+    geo = next(s for s in sources if s.id == "geo_api_commune_sample")
+    assert geo.url.startswith("https://geo.api.gouv.fr/communes?lat=43.52970&lon=5.44740")
 
 
-@pytest.mark.parametrize(
-    "url",
-    [
-        "http://firms.modaps.eosdis.nasa.gov/data.csv",
-        "https://example.org/data.csv",
-        "https://firms.modaps.eosdis.nasa.gov.evil.example/data.csv",
-        "file:///etc/passwd",
-        "https://169.254.169.254/latest/meta-data/",
-    ],
-)
-def test_check_url_rejects_unsafe_targets(url: str) -> None:
-    with pytest.raises(CaptureError):
-        capture.check_url(url)
-
-
-def test_read_limited_stops_at_the_cap() -> None:
-    with pytest.raises(CaptureError):
-        capture.read_limited(io.BytesIO(b"x" * 2000), max_bytes=1000)
-    assert capture.read_limited(io.BytesIO(b"abc"), max_bytes=3) == b"abc"
-
-
-def test_redirect_to_foreign_host_is_refused() -> None:
-    handler = capture._AllowListRedirectHandler()
-    request = urllib.request.Request(FIRMS_URL)
-    with pytest.raises(CaptureError):
-        handler.redirect_request(
-            request, io.BytesIO(), 302, "Found", {}, "https://example.org/elsewhere"
-        )
+def test_firms_ids_match_the_first_capture() -> None:
+    # Fixtures taken from earlier captures are named after these ids.
+    ids = [s.id for s in capture.default_sources(NOW.date())][:4]
+    assert ids == [
+        "firms_viirs_snpp_24h",
+        "firms_viirs_noaa20_24h",
+        "firms_viirs_noaa21_24h",
+        "firms_modis_24h",
+    ]
 
 
 def test_capture_writes_gzip_and_manifest(tmp_path: Path) -> None:
