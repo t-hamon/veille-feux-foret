@@ -19,9 +19,10 @@ import type { Basemap, View } from "./share";
 import { type Expression, byAge, visibleFilter } from "./timeline";
 
 // Metropolitan France and Corsica, shown whole when no position is shared.
+// The northern edge leaves room for the foyer markers near Dunkirk and Lille.
 const METROPOLE: [[number, number], [number, number]] = [
   [-5.2, 41.3],
-  [9.6, 51.1],
+  [9.6, 51.4],
 ];
 const FRANCE_BOUNDS: [[number, number], [number, number]] = [
   [-12, 38],
@@ -325,7 +326,7 @@ export async function createMap(options: MapOptions): Promise<MapHandle> {
       style: BASEMAPS[options.basemap].style,
       ...(start
         ? { center: [start.lon, start.lat] as [number, number], zoom: start.zoom }
-        : { bounds: METROPOLE, fitBoundsOptions: { padding: 16 } }),
+        : { bounds: METROPOLE, fitBoundsOptions: { padding: 24 } }),
       minZoom: 3,
       maxZoom: 18,
       maxBounds: FRANCE_BOUNDS,
