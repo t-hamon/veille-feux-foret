@@ -18,9 +18,36 @@ Ce fichier consigne les tests du projet et les résultats des dernières exécut
 | End-to-end, desktop et mobile | Playwright (Chromium, Firefox, WebKit) | CI `e2e` |
 | Accessibilité automatisée | axe-core, WCAG 2.2 AA, thèmes clair et sombre | CI `e2e` |
 | Navigation au clavier | Playwright | CI `e2e` |
+| Lecture et vérification des fichiers de données dans le navigateur, panneau de situation, frise, adresse de partage | Vitest (jsdom), fichiers écrits par le vrai pipeline (`web/e2e/fixtures/`) | CI `web` |
+| Carte, couches, frise, partage, cas dégradés (source en panne, données absentes, anciennes, illisibles, fond de carte hors service), texte piégé | Playwright, données du pipeline, fonds de carte remplacés par un style local | CI `e2e` |
+| Concordance des données de test avec le pipeline | pytest (`tools/test_build_web_fixtures.py`) | CI `pipeline` |
 | Performance, accessibilité, bonnes pratiques | Lighthouse CI | CI `lighthouse` |
 
 Les contrôles de sécurité (gitleaks, semgrep, bandit, zizmor, OWASP ZAP) sont décrits dans [SECURITY.md](SECURITY.md).
+
+## Résultats du lot 1b, partie 2 : carte
+
+Exécution du 5 octobre 2026 dans l'espace de développement, branche `lot-1b/carte`, Node.js 24.21, Python 3.11. Firefox et WebKit ne peuvent pas y être installés : ces deux moteurs sont testés par la CI.
+
+| Test | Résultat |
+|---|---|
+| Prettier, ESLint (typescript-eslint strict), tsc | aucun problème |
+| Vitest | 54 tests réussis |
+| Couverture | `data.ts` 98 % des lignes, `share.ts` 97 %, `status.ts` 93 %, `timeline.ts`, `format.ts` et `ui.ts` 100 %. `main.ts`, `map.ts` et `maplibre.ts` (branchement au DOM et à MapLibre) ne sont couverts que par les tests end-to-end. |
+| Build et poids (gzip) | page 10,4 kB de JS et 2,2 kB de CSS ; code de la carte 2,9 kB de JS et 10,2 kB de CSS ; MapLibre 297,4 kB (budget 320 kB), chargé après le premier affichage |
+| npm audit | 0 vulnérabilité |
+| Playwright, Chromium desktop et mobile (Pixel 7), build servi par wrangler | 73 scénarios réussis, 1 ignoré volontairement (navigation clavier sur mobile) ; même résultat sur une seconde exécution complète |
+| axe-core WCAG 2.2 AA, page chargée avec un foyer choisi, thèmes clair et sombre | aucune violation (inclus dans les scénarios ci-dessus) |
+| Lighthouse, une exécution sur le build avec les données de test | performance 100, accessibilité 100, bonnes pratiques 96, SEO 100 ; la seule erreur relevée est l'échec de chargement du fond de carte, dont le serveur n'est pas joignable depuis l'espace de développement |
+| Outils : ruff, mypy strict, pytest (dont la concordance des données de test avec le pipeline) | aucun problème, 7 tests réussis |
+| Pipeline (ajout du marqueur de typage `py.typed`) : ruff, mypy, pytest, bandit | aucun problème, 106 tests réussis |
+| zizmor sur les workflows | aucun résultat |
+
+Les tests end-to-end n'interrogent aucun serveur tiers : chaque scénario échoue si la page tente de joindre un autre hôte que le build local et les deux serveurs de fonds de carte, eux-mêmes remplacés par un style local. Le scénario de clic sur la carte et celui du fond hors service demandent WebGL 2 ; ils sont ignorés, avec leur raison, sur un navigateur qui ne l'a pas.
+
+Une relecture indépendante de la branche a relevé des défauts, tous corrigés et couverts par un test avant la livraison : réglages de la carte ignorés tant que les données n'étaient pas arrivées, frise figée et mentions fausses après l'échec d'un changement de fond, focus perdu au choix d'un foyer au clavier, panneau d'état relu toutes les minutes par les lecteurs d'écran, cercle de sélection affiché avant l'apparition du foyer, surfaces brûlées écartées sans être comptées, taille d'un fichier vérifiée seulement après son téléchargement.
+
+Vérifications faites hors des tests automatisés, depuis un navigateur, le 5 octobre 2026 : `data.geopf.fr` et `tiles.openfreemap.org` répondent aux requêtes CORS de MapLibre (style, tuiles, glyphes, sprite) ; le sprite « @2x » du Plan IGN gris répond 404, d'où le recours au sprite simple.
 
 ## Résultats du lot 1b, partie 1 : données
 

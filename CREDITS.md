@@ -37,7 +37,28 @@
 
 La licence de geo.api.gouv.fr a été vérifiée dans les dépôts dont le service est construit, [api-geo](https://github.com/datagouv/api-geo), [decoupage-administratif](https://github.com/datagouv/decoupage-administratif) et [contours-administratifs](https://github.com/datagouv/contours-administratifs) : la fiche de l'API sur data.gouv.fr indique un accès ouvert, limité à 50 appels par seconde et par adresse IP, sans nommer de licence. Le code de ces dépôts est sous licence MIT ; il n'est pas repris ici.
 
-Les autres sources (Open-Meteo, Météo-France, IGN, OpenFreeMap, Sentinel-2, ADS-B) seront vérifiées avant leur intégration, lot par lot.
+Les autres sources (Open-Meteo, Météo-France, orthophotos IGN, Sentinel-2, ADS-B) seront vérifiées avant leur intégration, lot par lot.
+
+## Fonds de carte
+
+Les deux fonds sont lus directement par le navigateur du visiteur sur leurs serveurs publics, sans clé. Conditions vérifiées le 5 octobre 2026.
+
+| Fond | Ce qui est utilisé | Licence et conditions | Mention affichée sous la carte |
+|---|---|---|---|
+| Plan IGN, style gris (fond par défaut) | style `PLAN.IGN/gris.json`, tuiles vectorielles `PLAN.IGN`, glyphes et sprite, sur `data.geopf.fr` (Géoplateforme de l'IGN) | données sous Licence Ouverte 2.0 (fiche [Plan IGN](https://www.data.gouv.fr/datasets/plan-ign) sur data.gouv.fr) ; d'après la page [Limites d'usage](https://cartes.gouv.fr/aide/fr/guides-utilisateur/utiliser-les-services-de-la-geoplateforme/limites-d-usage/) de cartes.gouv.fr, le service de tuiles vectorielles TMS n'est pas soumis à la limitation de débit | © IGN, Plan IGN ; Licence Ouverte 2.0 |
+| OpenFreeMap, style Positron (au choix) | style `positron`, tuiles vectorielles, raster de relief Natural Earth, glyphes et sprite, sur `tiles.openfreemap.org` | [OpenFreeMap](https://openfreemap.org) : instance publique gratuite, sans limite de vues ni clé, attribution obligatoire, aucune garantie de service ; données [OpenStreetMap](https://www.openstreetmap.org/copyright) (ODbL), schéma et styles dérivés d'[OpenMapTiles](https://www.openmaptiles.org/) | OpenFreeMap ; © OpenMapTiles ; Données © contributeurs OpenStreetMap |
+
+Le style gris du Plan IGN ne publie son sprite qu'en une résolution : les fichiers « @2x » demandés par MapLibre sur les écrans à haute densité répondent 404. L'application demande alors le sprite simple (`web/src/basemaps.ts`) : les icônes du fond restent affichées, plus petites sur ces écrans.
+
+La mention des fonds est écrite par l'application à partir de son propre texte, et non insérée telle que la renvoient les serveurs de tuiles (voir SECURITY.md).
+
+## Bibliothèques livrées avec le site
+
+| Bibliothèque | Version | Licence | Où |
+|---|---|---|---|
+| [MapLibre GL JS](https://maplibre.org) | 6.11.2 | BSD-3-Clause | fichiers publiés sans modification sous `assets/maplibre-gl-6.11.2/` du site, avec leur `LICENSE.txt` ; feuille de style intégrée au CSS de la carte |
+
+Les autres dépendances npm ne servent qu'au développement et aux tests ; elles ne sont pas livrées aux visiteurs.
 
 ## Images et polices
 
