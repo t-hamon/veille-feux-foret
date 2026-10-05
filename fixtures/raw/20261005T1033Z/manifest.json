@@ -1,0 +1,93 @@
+{
+  "captured_at": "2026-10-05T10:33:43+00:00",
+  "sources": [
+    {
+      "id": "firms_viirs_snpp_24h",
+      "url": "https://firms.modaps.eosdis.nasa.gov/data/active_fire/suomi-npp-viirs-c2/csv/SUOMI_VIIRS_C2_Europe_24h.csv",
+      "licence": "NASA open data policy, citation and LANCE disclaimer required",
+      "fetched_at": "2026-10-05T10:33:43+00:00",
+      "ok": true,
+      "http_status": 200,
+      "file": "firms_viirs_snpp_24h.csv.gz",
+      "bytes": 155592,
+      "sha256": "c7bab971cf7cb3cb68a9335314bf2bdc9276e1823d3638d529ea16a00635d1fc"
+    },
+    {
+      "id": "firms_viirs_noaa20_24h",
+      "url": "https://firms.modaps.eosdis.nasa.gov/data/active_fire/noaa-20-viirs-c2/csv/J1_VIIRS_C2_Europe_24h.csv",
+      "licence": "NASA open data policy, citation and LANCE disclaimer required",
+      "fetched_at": "2026-10-05T10:33:43+00:00",
+      "ok": true,
+      "http_status": 200,
+      "file": "firms_viirs_noaa20_24h.csv.gz",
+      "bytes": 178351,
+      "sha256": "703e4fb341c0bc129d52712c966f5e2c85ee33fd6211c044fcc907dd2851d6d8"
+    },
+    {
+      "id": "firms_viirs_noaa21_24h",
+      "url": "https://firms.modaps.eosdis.nasa.gov/data/active_fire/noaa-21-viirs-c2/csv/J2_VIIRS_C2_Europe_24h.csv",
+      "licence": "NASA open data policy, citation and LANCE disclaimer required",
+      "fetched_at": "2026-10-05T10:33:43+00:00",
+      "ok": true,
+      "http_status": 200,
+      "file": "firms_viirs_noaa21_24h.csv.gz",
+      "bytes": 159415,
+      "sha256": "651aee6a5507d6b262b298504b04568229c9cd8fc4aef51026612ea84ac3c8df"
+    },
+    {
+      "id": "firms_modis_24h",
+      "url": "https://firms.modaps.eosdis.nasa.gov/data/active_fire/modis-c6.1/csv/MODIS_C6_1_Europe_24h.csv",
+      "licence": "NASA open data policy, citation and LANCE disclaimer required",
+      "fetched_at": "2026-10-05T10:33:43+00:00",
+      "ok": true,
+      "http_status": 200,
+      "file": "firms_modis_24h.csv.gz",
+      "bytes": 23999,
+      "sha256": "5ad7700d4ed2bada6fe106657436c9a03c742bf93a3127a1e0e02668dfc4cf44"
+    },
+    {
+      "id": "effis_burned_dated",
+      "url": "https://maps.effis.emergency.copernicus.eu/effis?service=WFS&version=1.0.0&request=GetFeature&typename=ms%3Amodis.ba.poly.season&outputformat=geojson&bbox=-5.5%2C41.0%2C10.0%2C51.5",
+      "licence": "CC BY 4.0 (EFFIS, European Commission JRC)",
+      "fetched_at": "2026-10-05T10:33:43+00:00",
+      "ok": true,
+      "http_status": 200,
+      "file": "effis_burned_dated.geojson.gz",
+      "bytes": 18793870,
+      "sha256": "d1b02c44fd56199aa493ff1949c95105bb92a885d454e9493ef9fb80f8c7583d"
+    },
+    {
+      "id": "effis_burned_nrt",
+      "url": "https://maps.effis.emergency.copernicus.eu/effis?service=WFS&version=1.0.0&request=GetFeature&typename=ms%3Aeffis.nrt.ba.poly&outputformat=geojson&bbox=-5.5%2C41.0%2C10.0%2C51.5",
+      "licence": "CC BY 4.0 (EFFIS, European Commission JRC)",
+      "fetched_at": "2026-10-05T10:33:43+00:00",
+      "ok": true,
+      "http_status": 200,
+      "file": "effis_burned_nrt.geojson.gz",
+      "bytes": 2676424,
+      "sha256": "6fc7f1829af7abf4c1b5d973fa2c264c377e58ab41881963a99f57f5541172fe"
+    },
+    {
+      "id": "effis_weekly_stats",
+      "url": "https://api2.effis.emergency.copernicus.eu/statistics/v2/effis/weekly?country=FRA&year=2026",
+      "licence": "CC BY 4.0 (EFFIS, European Commission JRC)",
+      "fetched_at": "2026-10-05T10:33:43+00:00",
+      "ok": true,
+      "http_status": 200,
+      "file": "effis_weekly_stats.json.gz",
+      "bytes": 22661,
+      "sha256": "4df1fcdc9cac7b6d546c41442a164dccebf092e821664bcc23972dbb18cb3d18"
+    },
+    {
+      "id": "geo_api_commune_sample",
+      "url": "https://geo.api.gouv.fr/communes?lat=43.52970&lon=5.44740&fields=nom%2Ccode%2Cdepartement",
+      "licence": "Licence Ouverte (Etalab): INSEE COG and IGN ADMIN EXPRESS, via geo.api.gouv.fr",
+      "fetched_at": "2026-10-05T10:33:43+00:00",
+      "ok": true,
+      "http_status": 200,
+      "file": "geo_api_commune_sample.json.gz",
+      "bytes": 96,
+      "sha256": "c205c07861e11e973ca0a119830cf1ddc0121374267b89ef2a04c7a11644ee87"
+    }
+  ]
+}
