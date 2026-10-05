@@ -14,7 +14,11 @@ concurrency:
   group: security-${{ github.ref }}
   cancel-in-progress: true
 
+# pip skips any release uploaded less than seven days ago, like npm with
+# min-release-age in web/.npmrc. The setting needs pip 26.0 or later and older
+# versions ignore it, so each job first installs a pinned pip.
 env:
+  PIP_UPLOADED_PRIOR_TO: P7D
   GITLEAKS_VERSION: "8.30.1"
   GITLEAKS_SHA256: "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
 
@@ -48,7 +52,9 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
-      - run: python -m pip install semgrep==1.178.0
+      - run: |
+          python -m pip install pip==26.2.1
+          python -m pip install semgrep==1.178.0
       # One rule is excluded: python37-compatibility-importlib2 warns that
       # importlib.resources needs Python 3.7 or later. The pipeline requires
       # Python 3.11 (pyproject.toml), so the warning cannot apply.
@@ -74,7 +80,9 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
-      - run: python -m pip install zizmor==1.30.1
+      - run: |
+          python -m pip install pip==26.2.1
+          python -m pip install zizmor==1.30.1
       - name: Audit workflows
         run: zizmor --offline --min-severity low .github/workflows
 
