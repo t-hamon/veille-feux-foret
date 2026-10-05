@@ -49,11 +49,15 @@ jobs:
         with:
           python-version: "3.12"
       - run: python -m pip install semgrep==1.178.0
+      # One rule is excluded: python37-compatibility-importlib2 warns that
+      # importlib.resources needs Python 3.7 or later. The pipeline requires
+      # Python 3.11 (pyproject.toml), so the warning cannot apply.
       - name: Semgrep
         run: >
           semgrep scan --error --metrics=off
           --config p/default --config p/python --config p/typescript
           --config p/github-actions --config p/secrets
+          --exclude-rule python.lang.compatibility.python37.python37-compatibility-importlib2
           --json-output=semgrep.json
       - name: Report findings as annotations
         if: ${{ !cancelled() }}

@@ -31,6 +31,7 @@ Le site sera servi par Cloudflare Workers en fichiers statiques (déploiement au
 - **Isolation inter-origines stricte** (`Cross-Origin-Embedder-Policy: require-corp`) : elle convient tant que le site ne charge rien d'un autre domaine. Elle sera réexaminée au lot 1b, quand les tuiles de carte d'autres domaines arriveront.
 - **Surcharge de dépendance** : wrangler 4.138.0 fixe `undici` en 7.29.0, version touchée par plusieurs failles corrigées en 7.29.1 (dont GHSA-r53p-7pc4-xj5r et GHSA-w293-vg96-wgc3). Les versions de wrangler qui adoptent le correctif ont moins de 7 jours et sont refusées par `min-release-age`. `web/package.json` force donc `undici` 7.29.1 sous miniflare, version corrective de la même branche publiée depuis plus de 7 jours. La surcharge sera retirée quand une version de wrangler assez ancienne inclura le correctif.
 - **Règle ZAP ignorée** : 10049 (analyse informative du cache), avec sa justification dans `.zap/rules.tsv`. Toutes les autres règles font échouer le job.
+- **Règle semgrep exclue** : `python37-compatibility-importlib2`, qui signale que `importlib.resources` demande Python 3.7 ou plus. Le pipeline exige Python 3.11, l'avertissement ne peut donc pas s'appliquer. C'est une règle de compatibilité, pas de sécurité ; la justification est aussi dans `.github/workflows/security.yml`. Toutes les autres règles font échouer le job.
 
 ## Résultats du lot 1a
 
