@@ -43,6 +43,10 @@ Exécution du 5 octobre 2026 dans l'espace de développement, branche `lot-1b/ca
 | Pipeline (ajout du marqueur de typage `py.typed`) : ruff, mypy, pytest, bandit | aucun problème, 106 tests réussis |
 | zizmor sur les workflows | aucun résultat |
 
+Poste Windows du mainteneur, 5 octobre 2026, build servi par wrangler : Playwright sur les 5 profils (Chromium, Firefox et WebKit, desktop et mobile), 182 scénarios réussis, 3 ignorés volontairement (navigation clavier sur les profils mobiles et WebKit). Les captures d'écran de `docs/captures/lot-1b/` ont été prises sur ce poste avec `npm run captures`, avec les vrais fonds de carte.
+
+Première CI de la PR : deux échecs. semgrep signalait une expression régulière construite à partir d'une variable dans un test end-to-end (`detect-non-literal-regexp`) : les boutons des foyers y sont maintenant désignés par leur attribut `data-foyer`. Lighthouse a échoué sans que le seuil en cause soit lisible hors du journal du job : ses résultats sont désormais publiés en annotations, comme ceux de semgrep et de ZAP.
+
 Les tests end-to-end n'interrogent aucun serveur tiers : chaque scénario échoue si la page tente de joindre un autre hôte que le build local et les deux serveurs de fonds de carte, eux-mêmes remplacés par un style local. Le scénario de clic sur la carte et celui du fond hors service demandent WebGL 2 ; ils sont ignorés, avec leur raison, sur un navigateur qui ne l'a pas.
 
 Une relecture indépendante de la branche a relevé des défauts, tous corrigés et couverts par un test avant la livraison : réglages de la carte ignorés tant que les données n'étaient pas arrivées, frise figée et mentions fausses après l'échec d'un changement de fond, focus perdu au choix d'un foyer au clavier, panneau d'état relu toutes les minutes par les lecteurs d'écran, cercle de sélection affiché avant l'apparition du foyer, surfaces brûlées écartées sans être comptées, taille d'un fichier vérifiée seulement après son téléchargement.
