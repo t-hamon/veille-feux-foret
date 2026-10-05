@@ -17,3 +17,7 @@
 # File names under /assets contain a content hash: a new build means new names.
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
+
+# Data files are replaced every 30 minutes: always revalidated, never served stale.
+/data/*
+  Cache-Control: no-cache

@@ -10,5 +10,9 @@
     // Unknown paths get a plain 404, as with any static host; no SPA fallback.
     "not_found_handling": "none",
   },
+  // Served at https://veille-feux-foret.hamonthibaud.workers.dev, the free
+  // address of the account; no per-version preview address.
+  "workers_dev": true,
+  "preview_urls": false,
   "send_metrics": false,
 }
