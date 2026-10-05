@@ -89,6 +89,27 @@ Une relecture indépendante du workflow a relevé des défauts, corrigés avant 
 | Build servi par wrangler avec les données réelles du 5 octobre (`dist/data`) | `etat.json` servi avec `Cache-Control: no-cache` et la politique de sécurité ; `_headers` en 404 ; la page affiche 5 foyers et 41 détections ; les 4 316 surfaces brûlées se chargent en 0,3 s, aucune écartée ; aucune erreur dans la console |
 | Vitest, Playwright Chromium desktop et mobile | 54 tests réussis ; 73 scénarios réussis, 1 ignoré volontairement |
 
+CI de la PR n°7 sur GitHub : tous les contrôles réussis ; end-to-end 179 scénarios réussis, 6 ignorés volontairement ; Lighthouse réussi avec des avertissements sur le score de performance et le temps de blocage, qui ne bloquent pas (voir la partie 2).
+
+### Premier déploiement
+
+Run Deploy n°1 du 5 octobre 2026, déclenché par la fusion de la PR n°7 (commit `cb63c52`) :
+
+| Étape | Résultat |
+|---|---|
+| Construction des données et du site | réussie ; 7 sources sur 7 ont répondu, données générées à 14:52:49Z |
+| `wrangler deploy` | réussi |
+| Vérification du site déployé (`tools/check_deployment.py`) | échec : HTTP 403 sur les quatre adresses vérifiées, pendant les 2 minutes d'essais |
+
+Le même jour à 17 h 47 (heure de Paris), depuis un navigateur, le site déployé répondait correctement : page en 200 avec tous les en-têtes de `web/public/_headers`, `/data/etat.json` en 200 avec `Cache-Control: no-cache` et les données générées à 14:52:49Z, `/nexiste-pas` et `/_headers` en 404. Seules les requêtes du script étaient refusées. Cause probable, à confirmer par le prochain run : Cloudflare refuse l'identifiant de navigateur par défaut de Python (`Python-urllib`).
+
+Correction : le script envoie son propre identifiant (`veille-feux-foret-deploy-check`), et une réponse inattendue est désormais décrite dans l'annotation (en-têtes `server`, `cf-ray`, `cf-mitigated`, `content-type` et début du corps, sur une ligne) ; un fichier précédent illisible est signalé par une annotation dans le job de construction.
+
+| Test | Résultat |
+|---|---|
+| `tools/check_deployment.py` : identifiant envoyé, refus décrit avec ses en-têtes et son corps, corps d'une erreur HTTP conservé, extrait ramené sur une ligne courte, annotation échappée | 5 nouveaux tests réussis, qui échouent avec le script précédent ; au total ruff, mypy strict, 23 tests réussis |
+| Requêtes réelles du script vers les pages du dépôt sur GitHub (404 et 200) | statut, en-têtes et début du corps lus correctement |
+
 ## Résultats du lot 1b, partie 1 : données
 
 Exécution du 3 octobre 2026 dans l'espace de développement, branche `lot-1b/donnees`, Python 3.11.
