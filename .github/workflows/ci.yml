@@ -164,3 +164,6 @@ jobs:
         run: cp -r e2e/fixtures/complet dist/data
       - name: Lighthouse CI
         run: npx --yes @lhci/cli@0.15.1 autorun
+      - name: Report the results as annotations
+        if: ${{ !cancelled() }}
+        run: python3 ../tools/ci_annotations.py lighthouse .lighthouseci
