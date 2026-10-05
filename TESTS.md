@@ -110,6 +110,15 @@ Correction : le script envoie son propre identifiant (`veille-feux-foret-deploy-
 | `tools/check_deployment.py` : identifiant envoyé, refus décrit avec ses en-têtes et son corps, corps d'une erreur HTTP conservé, extrait ramené sur une ligne courte, annotation échappée | 5 nouveaux tests réussis, qui échouent avec le script précédent ; au total ruff, mypy strict, 23 tests réussis |
 | Requêtes réelles du script vers les pages du dépôt sur GitHub (404 et 200) | statut, en-têtes et début du corps lus correctement |
 
+Run Deploy n°2 du 5 octobre 2026, déclenché par la fusion de la PR n°8 (commit `eeb8591`) :
+
+| Étape | Résultat |
+|---|---|
+| Construction des données et du site | réussie en 29 s ; 7 sources sur 7 ont répondu, données générées à 17:28:58Z ; les 6 fichiers du déploiement précédent relus (aucune annotation de fichier illisible) |
+| `wrangler deploy` puis vérification du site déployé | réussis en 28 s : avec son propre identifiant, le script n'est plus refusé, ce qui confirme la cause |
+
+Vérification depuis un navigateur juste après, à 19 h 33 (heure de Paris) : fichier d'état généré à 17:28:58Z, 24 foyers listés, fond Plan IGN gris affiché avec les foyers et les détections, mentions des sources sous la carte et plus de pied de page, toutes les ressources de la page et du fond de carte en 200.
+
 ## Résultats du lot 1b, partie 1 : données
 
 Exécution du 3 octobre 2026 dans l'espace de développement, branche `lot-1b/donnees`, Python 3.11.
