@@ -174,3 +174,63 @@ def test_unreadable_previous_status_is_ignored(tmp_path: Path) -> None:
     (previous / build.STATUS).write_text("not json", encoding="utf-8")
     status = run(tmp_path / "out", real_bodies(), previous=previous)
     assert all(entry["ok"] for entry in status["sources"].values())
+
+
+# Previous files are read back from the deployed site: a broken or hostile one
+# must never stop the build nor be deployed again.
+
+
+def test_malformed_previous_burned_areas_are_ignored(tmp_path: Path) -> None:
+    first = tmp_path / "first"
+    run(first, real_bodies())
+    (first / build.BURNED).write_text('{"type":"FeatureCollection","features":[null]}')
+    second = tmp_path / "second"
+    status = run(second, real_bodies(), previous=first, now=NOW + dt.timedelta(hours=1))
+    # Within 6 hours EFFIS would not be fetched, but the previous layer is unusable.
+    assert status["sources"]["effis_dated"]["updated_at"] == "2026-10-03T12:28:00Z"
+    assert len(read(second / build.BURNED)["features"]) == 43 + 28
+
+
+def test_a_previous_update_time_in_the_future_is_not_trusted(tmp_path: Path) -> None:
+    first = tmp_path / "first"
+    run(first, real_bodies())
+    previous = read(first / build.STATUS)
+    previous["sources"]["effis_stats"]["updated_at"] = "2099-01-01T00:00:00Z"
+    (first / build.STATUS).write_text(json.dumps(previous))
+    second = tmp_path / "second"
+    status = run(second, real_bodies(), previous=first, now=NOW + dt.timedelta(hours=1))
+    assert status["sources"]["effis_stats"]["updated_at"] == "2026-10-03T12:28:00Z"
+
+
+def test_unreadable_previous_detections_are_not_carried(tmp_path: Path) -> None:
+    first = tmp_path / "first"
+    run(first, real_bodies())
+    (first / build.DETECTIONS).write_text("<html>not data</html>")
+    bodies = real_bodies()
+    for feed in FIRMS_FEEDS:
+        bodies[feed.url("7d")] = TimeoutError("timed out")
+    second = tmp_path / "second"
+    status = run(second, bodies, previous=first, now=NOW + dt.timedelta(minutes=30))
+    assert build.DETECTIONS not in status["files"]
+    assert build.FOYERS in status["files"]  # still a valid previous file
+
+
+def test_carried_errors_stay_on_one_line(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first = tmp_path / "first"
+    run(first, real_bodies())
+    previous = read(first / build.STATUS)
+    previous["sources"]["effis_nrt"].update(
+        {"ok": False, "error": "x\n::error::injected", "count": "many", "label": "<b>"}
+    )
+    (first / build.STATUS).write_text(json.dumps(previous))
+    second = tmp_path / "second"
+    status = run(second, real_bodies(), previous=first, now=NOW + dt.timedelta(hours=1))
+    entry = status["sources"]["effis_nrt"]
+    assert entry["error"] == "x ::error::injected"
+    assert entry["count"] is None
+    assert entry["label"] == "EFFIS, surfaces brûlées récentes (NRT)"
+    monkeypatch.setattr(build, "build", lambda out, previous, now: status)
+    build.main([str(second)])
+    assert all(not line.startswith("::") for line in capsys.readouterr().out.splitlines())

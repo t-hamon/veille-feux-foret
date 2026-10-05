@@ -39,6 +39,10 @@ MB = 1024 * 1024
 WINDOW = dt.timedelta(days=7)
 SLOW_REFRESH = dt.timedelta(hours=6)  # EFFIS republishes once or twice a day
 KEEP_RATIO = 0.5  # a layer half as rich as the previous one is not trusted
+# Seconds per network operation. In the worst case (every source at its limit)
+# the build stays around 11 minutes, within the deployment job.
+FIRMS_TIMEOUT = 90
+EFFIS_TIMEOUT = 120
 COORD_DECIMALS = 4
 
 DETECTIONS = "detections.geojson"
@@ -95,6 +99,31 @@ def _short_error(exc: BaseException) -> str:
     return f"{type(exc).__name__}: {exc}"[:300]
 
 
+def _one_line(value: Any, limit: int = 300) -> str:
+    """Text safe to print in a workflow log: one line, no control character."""
+    return "".join(" " if ord(c) < 32 or ord(c) == 127 else c for c in str(value))[:limit]
+
+
+# Previous data files are read back from the deployed site. Only files that are
+# what the build writes are reused: a JSON object, and for GeoJSON files a
+# feature collection whose features are objects. Anything else is ignored.
+GEOJSON_FILES = (DETECTIONS, FOYERS, OUTLINES, BURNED)
+
+
+def _usable_previous(path: Path) -> bool:
+    document = _read_json(path)
+    if not isinstance(document, dict):
+        return False
+    if path.name in GEOJSON_FILES:
+        features = document.get("features")
+        return (
+            document.get("type") == "FeatureCollection"
+            and isinstance(features, list)
+            and all(isinstance(f, dict) for f in features)
+        )
+    return True
+
+
 @dataclass
 class Context:
     out: Path
@@ -107,7 +136,22 @@ class Context:
     def previous_source(self, source_id: str) -> dict[str, Any]:
         sources = self.previous_status.get("sources")
         entry = sources.get(source_id) if isinstance(sources, dict) else None
-        return entry if isinstance(entry, dict) else {}
+        if not isinstance(entry, dict):
+            return {}
+        # Only the fields the build writes, in their own types.
+        clean: dict[str, Any] = {}
+        if isinstance(entry.get("ok"), bool):
+            clean["ok"] = entry["ok"]
+        for key in ("checked_at", "updated_at"):
+            moment = _parse_iso(entry.get(key))
+            if moment is not None and moment <= self.now:
+                clean[key] = _iso(moment)
+        count = entry.get("count")
+        if isinstance(count, int) and not isinstance(count, bool) and count >= 0:
+            clean["count"] = count
+        if isinstance(entry.get("error"), str):
+            clean["error"] = _one_line(entry["error"])
+        return clean
 
     def record(
         self, source_id: str, ok: bool, count: int | None = None, error: str | None = None
@@ -135,7 +179,7 @@ class Context:
         }
 
     def copy_previous(self, name: str) -> bool:
-        if self.previous is None or not (self.previous / name).is_file():
+        if self.previous is None or not _usable_previous(self.previous / name):
             return False
         shutil.copyfile(self.previous / name, self.out / name)
         return True
@@ -201,7 +245,7 @@ def build_fires(ctx: Context, area: geo.FranceArea, sites: tuple[geo.IndustrialS
     for feed in FIRMS_FEEDS:
         source_id = f"firms_{feed.id}"
         try:
-            text = ctx.get(feed.url("7d"), 60 * MB, 180).decode("utf-8")
+            text = ctx.get(feed.url("7d"), 60 * MB, FIRMS_TIMEOUT).decode("utf-8")
             parsed, _ = firms.parse_csv(text, feed.id, feed.sensor)
         except FIRMS_ERRORS as exc:
             ctx.record(source_id, False, error=_short_error(exc))
@@ -240,16 +284,20 @@ def build_fires(ctx: Context, area: geo.FranceArea, sites: tuple[geo.IndustrialS
 
 
 def _is_fresh(ctx: Context, source_id: str) -> bool:
+    # previous_source() drops times in the future, which would stay "fresh".
     updated = _parse_iso(ctx.previous_source(source_id).get("updated_at"))
     return updated is not None and ctx.now - updated < SLOW_REFRESH
 
 
 def _previous_burned(ctx: Context, kind: str) -> list[dict[str, Any]]:
-    document = _read_json(ctx.previous / BURNED if ctx.previous else None)
-    features = document.get("features") if isinstance(document, dict) else None
-    if not isinstance(features, list):
+    if ctx.previous is None or not _usable_previous(ctx.previous / BURNED):
         return []
-    return [f for f in features if (f.get("properties") or {}).get("kind") == kind]
+    features = _read_json(ctx.previous / BURNED)["features"]
+    return [
+        f
+        for f in features
+        if isinstance(f.get("properties"), dict) and f["properties"].get("kind") == kind
+    ]
 
 
 def _burned_layer(
@@ -264,7 +312,7 @@ def _burned_layer(
         ctx.carry(source_id)
         return previous
     try:
-        features, _ = load(json.loads(ctx.get(url, 120 * MB, 300)))
+        features, _ = load(json.loads(ctx.get(url, 120 * MB, EFFIS_TIMEOUT)))
     except EFFIS_ERRORS as exc:
         ctx.record(source_id, False, error=_short_error(exc))
         return previous
@@ -362,7 +410,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     status = build(args.out, args.previous, dt.datetime.now(dt.UTC))
     for source_id, entry in status["sources"].items():
-        state = "ok" if entry["ok"] else f"FAILED ({entry['error']})"
+        state = "ok" if entry["ok"] else f"FAILED ({_one_line(entry['error'])})"
         print(f"{source_id}: {state}")
     # The map can be deployed as long as fire detections exist, fresh or carried over.
     return 0 if DETECTIONS in status["files"] else 1
