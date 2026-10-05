@@ -8,7 +8,7 @@ const START = END - 168 * 3600;
 const status = (page: Page) => page.locator("#etat");
 const detail = (page: Page) => page.locator("#detail");
 const foyer = (page: Page, id: number) =>
-  page.getByRole("button", { name: new RegExp(`^Foyer ${String(id)} `) });
+  page.locator(`#foyers button[data-foyer="${String(id)}"]`);
 const slider = (page: Page) => page.getByRole("slider", { name: "Instant affiché" });
 const timeText = (page: Page) => page.locator("#instant-texte");
 
