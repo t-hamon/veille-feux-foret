@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { expect, test } from "./support";
 
 test.describe("page shell", () => {
   test("shows the disclaimer with the emergency numbers", async ({ page }) => {
@@ -19,6 +20,19 @@ test.describe("page shell", () => {
     expect(csp).toContain("default-src 'self'");
     expect(csp).toContain("object-src 'none'");
     expect(csp).not.toContain("unsafe-inline");
+  });
+
+  test("sends the same policy in the header and in the meta tag", async ({ page }) => {
+    const response = await page.goto("/");
+    const header = response?.headers()["content-security-policy"] ?? "";
+    const meta = await page
+      .locator('meta[http-equiv="Content-Security-Policy"]')
+      .getAttribute("content");
+    expect(header).toBe(`${meta ?? ""}; frame-ancestors 'none'`);
+    expect(header).toContain(
+      "connect-src 'self' https://data.geopf.fr https://tiles.openfreemap.org;",
+    );
+    expect(header).toContain("worker-src 'self'");
   });
 
   test("serves the security headers of public/_headers", async ({ page }) => {
@@ -47,7 +61,7 @@ test.describe("page shell", () => {
     );
     await page.goto("/");
     await page.keyboard.press("Tab");
-    await expect(page.getByRole("link", { name: "Aller au contenu" })).toBeFocused();
+    await expect(page.getByRole("link", { name: "Aller au tableau de situation" })).toBeFocused();
     await page.keyboard.press("Tab");
     const toggle = page.getByRole("button", { name: /Changer de thème/ });
     await expect(toggle).toBeFocused();

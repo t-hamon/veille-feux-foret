@@ -157,5 +157,19 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - run: npm ci
       - run: npm run build
+      # Audit the page as it is once deployed, with data files: those written
+      # by the pipeline from the capture of 3 October 2026 (e2e/fixtures). The
+      # base map is loaded from its real server, like for any visitor.
+      - name: Add the data files of the test capture
+        run: cp -r e2e/fixtures/complet dist/data
+      # Thresholds (web/lighthouserc.json): first contentful paint, largest
+      # contentful paint, layout shift, accessibility and best practices fail
+      # the job. The performance score and the total blocking time only warn:
+      # they are dominated by drawing the WebGL map on a runner without GPU
+      # and a 4x slowed CPU (3.6 to 4.9 s of blocking time measured on
+      # 5 October 2026). Their values are published as annotations each run.
       - name: Lighthouse CI
         run: npx --yes @lhci/cli@0.15.1 autorun
+      - name: Report the results as annotations
+        if: ${{ !cancelled() }}
+        run: python3 ../tools/ci_annotations.py lighthouse .lighthouseci

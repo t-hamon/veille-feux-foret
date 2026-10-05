@@ -6,3 +6,5 @@ package-lock.json
 lighthouse-report
 .lighthouseci
 .wrangler
+# Written by tools/build_web_fixtures.py, compared byte for byte by its test.
+e2e/fixtures

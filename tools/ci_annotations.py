@@ -1,4 +1,4 @@
-"""Turn semgrep and OWASP ZAP JSON reports into GitHub Actions annotations.
+"""Turn semgrep, OWASP ZAP and Lighthouse CI reports into GitHub Actions annotations.
 
 Job logs are hard to reach outside the GitHub interface, while annotations
 are shown on the pull request and are available through the checks API.
@@ -64,11 +64,82 @@ def zap_annotations(report: dict[str, Any]) -> Iterator[str]:
             )
 
 
+LIGHTHOUSE_METRICS = (
+    "first-contentful-paint",
+    "largest-contentful-paint",
+    "total-blocking-time",
+    "cumulative-layout-shift",
+    "speed-index",
+)
+MAX_AUDITS = 8
+
+
+def lighthouse_annotations(folder: Path) -> Iterator[str]:
+    """Failed assertions as errors, then a summary of each run as notices.
+
+    ``folder`` is the .lighthouseci folder: assertion-results.json and one
+    lhr-*.json report per run.
+    """
+    assertions = folder / "assertion-results.json"
+    if assertions.is_file():
+        for result in json.loads(assertions.read_text(encoding="utf-8")):
+            if result.get("passed", True):
+                continue
+            target = str(result.get("auditId", ""))
+            if result.get("auditProperty"):
+                target = f"{target}.{result['auditProperty']}"
+            level = "error" if result.get("level") == "error" else "warning"
+            yield command(
+                level,
+                f"{target}: {result.get('name', '')} expected {result.get('operator', '')}"
+                f" {result.get('expected', '')}, got {result.get('actual', '')}",
+                title=f"Lighthouse {target}",
+            )
+    # GitHub keeps 10 notices per step: two per run, console errors of the
+    # first run only.
+    for index, path in enumerate(sorted(folder.glob("lhr-*.json"))):
+        report = json.loads(path.read_text(encoding="utf-8"))
+        audits = report.get("audits", {})
+        scores = ", ".join(
+            f"{key} {value.get('score')}" for key, value in report.get("categories", {}).items()
+        )
+        metrics = ", ".join(
+            f"{key} {audits[key].get('displayValue', '')}"
+            for key in LIGHTHOUSE_METRICS
+            if key in audits
+        )
+        yield command("notice", f"{scores} | {metrics}", title=f"Lighthouse run {path.stem}")
+        weak = sorted(
+            (
+                (audit.get("score"), key, str(audit.get("displayValue", "")))
+                for key, audit in audits.items()
+                if isinstance(audit.get("score"), (int, float)) and audit["score"] < 0.9
+            ),
+        )[:MAX_AUDITS]
+        if weak:
+            listed = "; ".join(f"{key} {score} {shown}".strip() for score, key, shown in weak)
+            yield command("notice", listed, title=f"Lighthouse weakest audits {path.stem}")
+        console = audits.get("errors-in-console", {}).get("details", {}).get("items", [])
+        for item in console[:MAX_INSTANCES] if index == 0 else []:
+            yield command(
+                "notice",
+                f"{item.get('source', '')}: {str(item.get('description', ''))[:300]}",
+                title="Lighthouse console error",
+            )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("kind", choices=["semgrep", "zap"])
-    parser.add_argument("report", type=Path)
+    parser.add_argument("kind", choices=["semgrep", "zap", "lighthouse"])
+    parser.add_argument("report", type=Path, help="JSON report, or the .lighthouseci folder")
     args = parser.parse_args(argv)
+    if args.kind == "lighthouse":
+        if not args.report.is_dir():
+            print(command("warning", f"report folder not found: {args.report}"))
+            return 0
+        for line in lighthouse_annotations(args.report):
+            print(line)
+        return 0
     if not args.report.is_file():
         print(command("warning", f"report not found: {args.report}"))
         return 0

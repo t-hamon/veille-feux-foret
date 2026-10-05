@@ -28,7 +28,7 @@ veille-feux-build = "veille_feux.build:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-veille_feux = ["data/*.json", "data/*.geojson"]
+veille_feux = ["py.typed", "data/*.json", "data/*.geojson"]
 
 [tool.ruff]
 line-length = 100
