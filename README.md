@@ -11,13 +11,13 @@ Le projet est construit par lots, chacun livré par une ou plusieurs pull reques
 | Lot | Contenu | État |
 |---|---|---|
 | 1a | Dépôt, intégration continue, contrôles de sécurité, capture de fixtures | fusionné (PR n°1) |
-| 1b | Carte, foyers FIRMS, périmètres EFFIS, frise temporelle, déploiement | données et carte fusionnées (PR n°3 et n°6) ; déploiement en revue |
+| 1b | Carte, foyers FIRMS, périmètres EFFIS, frise temporelle, déploiement | données, carte et déploiement fusionnés (PR n°3, n°6, n°7 et n°8) ; comparaison avec les projets d'origine à faire |
 | 2 | Prévision : vent, météo AROME, propagation | à venir |
 | 3 | Imagerie et temps : comparaison, imagerie, relief 3D, fumée | à venir |
 | 4 | Situation : score de menace, danger Météo-France, moyens aériens, enjeux exposés | à venir |
 | 5 | Fil d'information et archive | à venir |
 
-La démo en ligne sera indiquée ici après le premier déploiement réussi, dernière partie du lot 1b. La comparaison détaillée avec les projets d'origine sera faite à la fin du lot 1b.
+Démo en ligne : <https://veille-feux-foret.hamonthibaud.workers.dev>. La comparaison détaillée avec les projets d'origine sera faite à la fin du lot 1b.
 
 ## Ce que montre la carte
 
