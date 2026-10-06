@@ -22,8 +22,32 @@ Ce fichier consigne les tests du projet et les résultats des dernières exécut
 | Carte, couches, frise, partage, cas dégradés (source en panne, données absentes, anciennes, illisibles, fond de carte hors service), texte piégé | Playwright, données du pipeline, fonds de carte remplacés par un style local | CI `e2e` |
 | Concordance des données de test avec le pipeline | pytest (`tools/test_build_web_fixtures.py`) | CI `pipeline` |
 | Performance, accessibilité, bonnes pratiques | Lighthouse CI | CI `lighthouse` |
+| Déclencheur des mises à jour : appel à l'API de GitHub, secret absent, refus de GitHub, jeton absent des messages | Vitest | CI `web` |
 
 Les contrôles de sécurité (gitleaks, semgrep, bandit, zizmor, OWASP ZAP) sont décrits dans [SECURITY.md](SECURITY.md).
+
+## Résultats du lot 1b : déclencheur des mises à jour
+
+Exécution du 6 octobre 2026 dans l'espace de développement, branche `lot-1b/declencheur`.
+
+Constat de départ : du 5 octobre 2026 à 15 h UTC au 6 octobre à 8 h UTC, 2 des 34 runs planifiés de Deploy ont démarré (21:58 et 02:14 UTC), tous deux réussis. Le 5 octobre au soir, sur la PR n°9, le job end-to-end (run CI 37368444395, deux tentatives) et le job zizmor (run Security 37368444406, première tentative) ont été annulés avec le message « The job was not acquired by Runner of type hosted even after multiple attempts », sans qu'aucune étape ait été exécutée ; la relance du lendemain matin a réussi.
+
+| Test | Résultat |
+|---|---|
+| Vitest sur `web/trigger/` : adresse, méthode, en-têtes et corps de la demande à GitHub ; secret absent ou vide (aucun appel) ; refus de GitHub avec son explication et sans le jeton ; réponse longue ramenée sur une ligne ; code 200 traité comme un échec ; module principal n'exportant que son gestionnaire ; gestionnaire planifié avec le secret et le `fetch` global (remplacé par une doublure) | 8 tests réussis, couverture 100 % de `web/trigger/` ; au total 62 tests Vitest réussis |
+| ESLint, Prettier, tsc (dont `tsconfig.trigger.json`) | aucun problème |
+| `wrangler deploy --dry-run` avec `web/trigger/wrangler.jsonc`, ajouté au job `web` de la CI | Worker de 1,4 Kio, aucune liaison |
+| Worker exécuté par `wrangler dev --test-scheduled` (moteur local de Cloudflare), tâche planifiée déclenchée, faux jeton | demande reçue par l'API de GitHub, refusée en HTTP 401 « Bad credentials » ; l'échec est signalé sur une ligne, sans le jeton |
+| zizmor sur les 5 workflows, dont `trigger.yml` en profil le plus strict | aucun résultat |
+
+Le premier essai dans le moteur local a révélé un défaut que les tests unitaires ne voyaient pas : le module principal d'un Worker ne peut exporter que ses gestionnaires. La logique est passée dans `web/trigger/dispatch.ts`.
+
+Une relecture indépendante a relevé d'autres défauts, corrigés avant la livraison : journaux du Worker désactivés par wrangler à chaque déploiement faute de réglage (un jeton expiré serait passé inaperçu), appel prévu à 0 et 30 minutes, heures les plus chargées de GitHub, aucun contrôle automatique des exports du Worker ni de sa configuration, portée du jeton sous-estimée dans SECURITY.md, type de la variable chez Cloudflare non précisé.
+
+| Non exécuté | Raison | Quand |
+|---|---|---|
+| Déploiement du Worker et de sa tâche planifiée | nécessite les identifiants Cloudflare, disponibles seulement dans l'environnement `production` | à la fusion, par le workflow **Deploy trigger** |
+| Lancement réel de Deploy par le Worker | nécessite le jeton GitHub, créé par le mainteneur après le déploiement du Worker | résultats consignés après les premiers runs lancés par le déclencheur |
 
 ## Résultats du lot 1b, partie 2 : carte
 
