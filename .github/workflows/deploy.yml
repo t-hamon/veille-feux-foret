@@ -1,8 +1,10 @@
 name: Deploy
 
 # Builds the data from the public sources and the site, deploys both to
-# Cloudflare Workers, then checks the deployed site. It runs every 30 minutes,
-# on each push to main, and by hand from the Actions tab.
+# Cloudflare Workers, then checks the deployed site. It is started every 30
+# minutes by the trigger Worker (web/trigger, through workflow_dispatch), on
+# each push to main, and by hand from the Actions tab. Its own schedule below
+# is a fallback: GitHub delays or drops most scheduled runs.
 #
 # The previous data files are read back from the deployed site itself: when a
 # source does not answer, the build keeps its last data and says so, instead of
