@@ -30,4 +30,5 @@ web/preview.log
 .DS_Store
 .idea/
 .vscode/
-web/.wrangler/
+# Local state of wrangler (web/ and web/trigger/)
+.wrangler/

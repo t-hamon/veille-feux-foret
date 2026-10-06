@@ -13,7 +13,7 @@
     "preview": "vite preview --port 4173 --strictPort",
     "lint": "eslint .",
     "format:check": "prettier --check .",
-    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.trigger.json",
     "test": "vitest run --coverage",
     "test:e2e": "playwright test",
     "size": "node scripts/bundle-size.mjs",
