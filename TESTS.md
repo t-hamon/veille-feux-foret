@@ -42,6 +42,14 @@ Constat de départ : du 5 octobre 2026 à 15 h UTC au 6 octobre à 8 h UTC, 2 de
 
 Le premier essai dans le moteur local a révélé un défaut que les tests unitaires ne voyaient pas : le module principal d'un Worker ne peut exporter que ses gestionnaires. La logique est passée dans `web/trigger/dispatch.ts`.
 
+Le 7 octobre, `npm ci` a signalé une faille de sévérité élevée publiée le 30 septembre (GHSA-wq5f-xc86-pv6w, `sharp` avant 0.35.5, chargé par le moteur local de wrangler), qui aurait fait échouer l'audit de la CI. Après la surcharge de `sharp` en 0.35.5 (voir SECURITY.md), seuls `sharp` et ses binaires précompilés changent dans `package-lock.json` :
+
+| Test | Résultat |
+|---|---|
+| `npm ci` puis `npm audit --audit-level=moderate` | aucune vulnérabilité |
+| Vitest, build | 62 tests réussis, build réussi |
+| Playwright Chromium desktop et mobile, site servi par `wrangler dev` | 73 scénarios réussis, 1 ignoré volontairement |
+
 Une relecture indépendante a relevé d'autres défauts, corrigés avant la livraison : journaux du Worker désactivés par wrangler à chaque déploiement faute de réglage (un jeton expiré serait passé inaperçu), appel prévu à 0 et 30 minutes, heures les plus chargées de GitHub, aucun contrôle automatique des exports du Worker ni de sa configuration, portée du jeton sous-estimée dans SECURITY.md, type de la variable chez Cloudflare non précisé.
 
 | Non exécuté | Raison | Quand |
