@@ -86,6 +86,8 @@ jobs:
         run: npm run build
       - name: Bundle size budget
         run: npm run size
+      - name: Trigger Worker bundle (dry run, no credentials)
+        run: npx wrangler deploy --dry-run --config trigger/wrangler.jsonc
       - name: Dependency audit
         run: npm audit --audit-level=moderate
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

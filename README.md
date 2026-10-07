@@ -48,12 +48,19 @@ Dans le navigateur, la page lit les fichiers de `data/` (état, détections, foy
 
 ## Mise à jour et déploiement
 
-Le workflow **Deploy** (`.github/workflows/deploy.yml`) tourne toutes les 30 minutes (à 7 et 37 minutes de chaque heure), à chaque fusion dans `main` et à la demande depuis l'onglet Actions. Il a deux jobs :
+Le workflow **Deploy** (`.github/workflows/deploy.yml`) est lancé toutes les 30 minutes par un déclencheur hébergé chez Cloudflare (voir plus bas), à chaque fusion dans `main` et à la demande depuis l'onglet Actions. Sa propre planification GitHub (à 7 et 37 minutes de chaque heure) reste en secours. Il a deux jobs :
 
 1. **construction**, sans aucun secret : relecture des fichiers de données du site déployé, pour les reprendre si une source ne répond pas (seuls les fichiers bien formés sont repris) ; collecte des sources et construction des données (`veille-feux-build`), avec l'état de chaque source publié en annotation du run ; construction du site avec ses données ;
 2. **déploiement**, dans l'environnement GitHub `production` qui n'accepte que la branche `main` et seul à recevoir les identifiants Cloudflare : installation de wrangler sans exécuter aucun script d'installation, déploiement sur Cloudflare Workers (`wrangler deploy`), puis vérification du site déployé (`tools/check_deployment.py`) : fichier d'état servi identique à celui qui vient d'être construit, en-têtes de sécurité présents, chemins inconnus et fichier `_headers` en 404.
 
 Si aucune détection n'est disponible, ni fraîche ni reprise, le run échoue avant le déploiement : le site garde sa version précédente. Chaque source a un délai de réponse limité, pour que la construction ne dépasse pas une dizaine de minutes même si toutes les sources traînent. L'adresse `veille-feux-foret.hamonthibaud.workers.dev` suppose que le sous-domaine `hamonthibaud.workers.dev` du compte Cloudflare existe déjà, ce qui est le cas.
+
+**Déclencheur.** GitHub retarde ou saute une grande partie des tâches planifiées : du 5 octobre 2026 à 15 h UTC au 6 octobre à 8 h UTC, 2 des 34 runs planifiés de Deploy ont démarré. Un petit Worker distinct, `veille-feux-foret-trigger` (`web/trigger/`), est donc lancé par une tâche planifiée de Cloudflare à 7 et 37 minutes de chaque heure (UTC) et demande à GitHub, par son API, de lancer Deploy sur `main`. Il n'a pas d'adresse publique et ne fait rien d'autre. Le Worker est déployé par le workflow **Deploy trigger** (`.github/workflows/trigger.yml`) quand son code change. Si GitHub refuse la demande (jeton expiré, par exemple), l'invocation échoue et son message reste 3 jours dans les journaux du Worker chez Cloudflare (Workers & Pages, `veille-feux-foret-trigger`, Logs) ; la planification GitHub continue de lancer Deploy quand elle le peut.
+
+Son seul secret, `GITHUB_TOKEN`, est créé une fois à la main :
+
+1. sur GitHub, un jeton à accès fin (Settings, Developer settings, Personal access tokens, Fine-grained tokens) limité au seul dépôt `t-hamon/veille-feux-foret`, avec la seule permission de dépôt « Actions » en lecture et écriture, et une expiration à un an ;
+2. chez Cloudflare, dans Workers & Pages, `veille-feux-foret-trigger`, Settings, Variables and Secrets, une variable `GITHUB_TOKEN` de type **Secret** (pas Text : une variable Text serait supprimée au déploiement suivant du Worker).
 
 ## Développement
 
@@ -120,7 +127,7 @@ Détail des éléments repris, sources de données et licences : [CREDITS.md](CR
 
 ## Limites connues
 
-- La mise à jour dépend des tâches planifiées de GitHub Actions : elles peuvent partir avec plusieurs minutes de retard, voire être sautées aux heures chargées, et GitHub les désactive dans un dépôt public resté 60 jours sans activité. La page signale alors des données en retard, puis anciennes.
+- La mise à jour dépend du déclencheur Cloudflare et de la disponibilité des machines de GitHub Actions : un run demandé peut attendre une machine, et le 5 octobre 2026 au soir deux jobs de la PR n°9 n'en ont trouvé aucune en 15 minutes (voir TESTS.md). Si le jeton du déclencheur expire, seule reste la planification GitHub, très irrégulière, que GitHub désactive en plus dans un dépôt public resté 60 jours sans activité. La page signale alors des données en retard, puis anciennes.
 - Si la vérification qui suit un déploiement échoue, la version déployée reste en ligne : il n'y a pas de retour automatique à la précédente. Le run échoue et GitHub prévient le mainteneur par courriel.
 - Un commit poussé sur `main` est déployé sans attendre la CI de ce commit : seules des PR dont la CI est passée sont fusionnées dans `main`.
 - Une détection FIRMS est une anomalie thermique vue par satellite, pas forcément un feu de forêt. Les sites industriels connus sont écartés, mais la liste n'est pas complète : sur deux captures à deux jours d'intervalle, 4 des 5 foyers se trouvaient au même endroit, ce qui évoque des sources de chaleur permanentes non encore identifiées.

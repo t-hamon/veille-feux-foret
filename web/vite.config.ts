@@ -102,11 +102,11 @@ export default defineConfig({
   worker: { format: "es" },
   test: {
     environment: "jsdom",
-    include: ["src/**/*.test.ts"],
+    include: ["src/**/*.test.ts", "trigger/**/*.test.ts"],
     coverage: {
       provider: "v8",
-      include: ["src/**/*.ts"],
-      exclude: ["src/**/*.test.ts"],
+      include: ["src/**/*.ts", "trigger/**/*.ts"],
+      exclude: ["src/**/*.test.ts", "trigger/**/*.test.ts"],
       reporter: ["text", "lcov"],
     },
   },

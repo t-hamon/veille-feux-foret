@@ -1,0 +1,23 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  // Worker that starts the Deploy workflow every 30 minutes (see index.ts).
+  // Deployed by .github/workflows/trigger.yml; its GITHUB_TOKEN secret is set
+  // in the Cloudflare dashboard and kept across deployments.
+  "name": "veille-feux-foret-trigger",
+  "main": "./index.ts",
+  "compatibility_date": "2026-09-21",
+  // UTC. Minutes 7 and 37, like the schedule of deploy.yml kept as a fallback:
+  // GitHub is busiest at the top of the hour.
+  "triggers": {
+    "crons": ["7,37 * * * *"],
+  },
+  // Workers Logs keep each invocation and its error (expired token...) for
+  // 3 days. Without this block, wrangler turns them off at every deployment.
+  "observability": {
+    "enabled": true,
+  },
+  // No public address: the Worker only runs on its schedule.
+  "workers_dev": false,
+  "preview_urls": false,
+  "send_metrics": false,
+}
