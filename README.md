@@ -11,13 +11,13 @@ Le projet est construit par lots, chacun livré par une ou plusieurs pull reques
 | Lot | Contenu | État |
 |---|---|---|
 | 1a | Dépôt, intégration continue, contrôles de sécurité, capture de fixtures | fusionné (PR n°1) |
-| 1b | Carte, foyers FIRMS, périmètres EFFIS, frise temporelle, déploiement | données, carte et déploiement fusionnés (PR n°3, n°6, n°7 et n°8) ; comparaison avec les projets d'origine à faire |
+| 1b | Carte, foyers FIRMS, périmètres EFFIS, frise temporelle, déploiement | terminé : PR n°3 et n°6 à n°10, puis la PR de clôture (comparaison, captures) |
 | 2 | Prévision : vent, météo AROME, propagation | à venir |
 | 3 | Imagerie et temps : comparaison, imagerie, relief 3D, fumée | à venir |
-| 4 | Situation : score de menace, danger Météo-France, moyens aériens, enjeux exposés | à venir |
+| 4 | Situation : foyers nommés par commune, score de menace, danger Météo-France, moyens aériens, enjeux exposés | à venir |
 | 5 | Fil d'information et archive | à venir |
 
-Démo en ligne : <https://veille-feux-foret.hamonthibaud.workers.dev>. La comparaison détaillée avec les projets d'origine sera faite à la fin du lot 1b.
+Démo en ligne : <https://veille-feux-foret.hamonthibaud.workers.dev>, mise à jour toutes les 30 minutes.
 
 ## Ce que montre la carte
 
@@ -31,7 +31,53 @@ Démo en ligne : <https://veille-feux-foret.hamonthibaud.workers.dev>. La compar
 - **Partage** par l'adresse : position de la carte, fond, instant, foyer choisi et couche des surfaces brûlées.
 - Thème clair ou sombre, mise en page mobile, navigation au clavier, liste des foyers utilisable sans la carte (et sans WebGL).
 
-Captures d'écran : `docs/captures/lot-1b/`, prises sur le build avec `npm run captures` (voir plus bas).
+### Aperçu
+
+![Animation : la frise des 7 derniers jours parcourue par pas de 8 heures, l'affichage des surfaces brûlées, puis le zoom sur un foyer et l'ouverture de sa fiche](docs/captures/en-ligne/interactions.gif)
+
+| Bureau | Mobile |
+|---|---|
+| ![Vue bureau : tableau de situation, carte des foyers et fiche du foyer n°1](docs/captures/en-ligne/desktop-foyer.png) | ![Vue mobile : avertissement, choix des couches et carte des foyers](docs/captures/en-ligne/mobile-clair.png) |
+
+Captures et animation prises sur le site en ligne avec `npm run captures:demo` (voir Développement). Les autres vues, thème sombre et fond OpenStreetMap, sont dans `docs/captures/en-ligne/`.
+
+## Comparaison avec les projets d'origine
+
+D'après le texte intégral de leurs README, relu le 10 octobre 2026. Deux cases de carte-incendies viennent de son code (licence MIT) et le disent. Le README de feux-france décrit désormais un observatoire plus large, OMNI (feux, épidémies, conflits) : seule sa partie sur les feux est comparée. « Non indiqué » veut dire que le README n'en parle pas, pas que la fonctionnalité manque.
+
+| Fonctionnalité | carte-incendies | Flamap | feux-france | veille-feux-foret |
+|---|---|---|---|---|
+| Zone couverte | France métropolitaine | France métropolitaine, Espagne et Portugal (péninsule couverte plus légèrement) | France | France métropolitaine |
+| Détections satellite NASA FIRMS | VIIRS (3 satellites) et MODIS, 7 jours | VIIRS et MODIS, 10 jours | VIIRS (3 satellites), rafraîchies environ toutes les 3 heures | VIIRS (3 satellites) et MODIS, 7 jours, état de chaque flux affiché |
+| Sites industriels à chaleur permanente écartés | oui, 21 sites (d'après son code) | non indiqué (cités parmi les faux positifs possibles) | non indiqué | oui, liste reprise de carte-incendies |
+| Regroupement en foyers | foyers actifs avec emprise estimée, cumul sur 7 jours et compte sur 24 heures | non indiqué | foyers nommés par commune, contours, tendance, reprise après 48 heures | foyers d'au moins 3 détections, avec emprise et fiche ; nom de commune au lot 4 |
+| Surfaces brûlées Copernicus EFFIS | datées (surface, commune) et récentes, régénérées toutes les 6 heures | saison en cours | non indiqué | datées et récentes, chargées à la demande |
+| Bilan de la saison | oui, statistiques EFFIS (d'après son code) | non indiqué | non indiqué | oui, comparé à la moyenne depuis 2006 |
+| Incendies signalés, évacuations | situation officielle et évacuations saisies à la main à partir des communiqués | incendies signalés par l'association PSFDF, avec leur statut | communiqués des préfectures dans le fil d'information | non prévu à ce jour, à décider |
+| Frise temporelle | 7 jours passés et 12 heures de prévision, lecture animée | 10 jours, détections regroupées par passage satellite, lecture qui accélère dans les creux | semaine rejouée heure par heure, avec le vent et les rotations aériennes | 7 jours heure par heure, lecture animée, âge des détections à l'instant choisi ; prévision au lot 2, curseur continu au lot 3 |
+| Vent animé | oui, Open-Meteo, vent actuel ou prévu | oui, AROME HD (France), ARPEGE (péninsule) | oui | lot 2 |
+| Météo au point | non indiqué | prévisions horaires d'un point | AROME au foyer, vent mesuré à la station la plus proche, prévision d'ensemble, normales climatiques | lot 2 |
+| Prévision de propagation | panaches heure par heure, communes sous le vent, présentés comme estimations non officielles | non indiqué | trajectoire de propagation sur 6 heures | lot 2, méthode et limites documentées |
+| Fumée simulée | non indiqué | oui, présentée comme indicative | non indiqué | lot 3 |
+| Imagerie | non indiqué | orthophotos IGN, Sentinel-2 sans nuages ailleurs | imagerie NASA GIBS par foyer, fond satellite | lot 3, avec relief 3D et comparaison avant / après |
+| Autres couches | non indiqué | non indiqué | radar de pluie, qualité de l'air, carte de chaleur, cartes choroplèthes (activité, danger, vigilance) | non prévu à ce jour |
+| Moyens aériens (ADS-B) | non indiqué | oui, cap et fiche de vol | oui, Sécurité civile et renforts européens, trajectoires synchronisées avec la frise | lot 4 |
+| Score de menace | non indiqué | non indiqué | oui, de 0 à 100 | lot 4, composantes et pondérations affichées |
+| Danger et vigilance Météo-France | non indiqué | non indiqué | oui | lot 4 |
+| Population et sites sensibles exposés | non indiqué | non indiqué | oui, à 10 km et 3 km | lot 4 |
+| Fil d'information | non indiqué | non indiqué | presse, réseaux sociaux, communiqués, vidéos, synthèse par IA | lot 5, sources à valider |
+| Archive | non indiqué | oui, hors du site : page « Feux archivés » qui rejoue chaque feu suivi par PSFDF | oui, historique SQLite | lot 5, stockage à décider |
+| Alertes | non indiqué | notifications des nouveaux foyers dans un rayon de 5 à 50 km | alerte combinant vent et canicule | non prévu à ce jour |
+| Export d'image | non indiqué | PNG ou GIF de l'évolution | non indiqué | non prévu à ce jour |
+| Partage d'une vue par l'adresse | non indiqué | position et zoom | non indiqué | position, fond, instant, foyer et couche |
+| État des données affiché | non indiqué | panneau « Mises à jour des données » | non indiqué | état de chaque source ; retard, ancienneté et reprise des données précédentes signalés |
+| Mise à jour des données | page actualisée toutes les 10 minutes, surfaces brûlées toutes les 6 heures | toutes les 30 minutes, température toutes les 6 heures | collecte toutes les 30 minutes | toutes les 30 minutes : du 7 au 10 octobre 2026, 148 runs pour 148 passages, 147 réussis |
+| Panne d'une source | non indiqué | publication annulée, carte en ligne inchangée | non indiqué | données précédentes reprises et signalées comme anciennes |
+| Hébergement | serveur Python (Render ou Docker) | fichiers statiques sur GitHub Pages, serveur séparé pour l'archive | serveur Node.js et SQLite (Docker sur un serveur privé) | fichiers statiques sur Cloudflare Workers, sans serveur |
+| Clés d'API | jeton Mapbox | aucune | facultatives (Exa, OpenRouter, Météo-France, OpenSky) | aucune |
+| Thème sombre et accessibilité testée | non indiqué | non indiqué | non indiqué | thèmes clair et sombre, mobile, tests automatisés WCAG 2.2 AA et clavier |
+| Tests publiés | vérification des fichiers de situation en CI | tests Python et JavaScript sans réseau, en CI | `npm test`, typage et build en CI | unitaires, end-to-end sur 3 navigateurs, Lighthouse, analyses de sécurité (TESTS.md, SECURITY.md) |
+| Licence du code | MIT | aucune | aucune indiquée | MIT |
 
 ## Architecture
 
@@ -55,7 +101,7 @@ Le workflow **Deploy** (`.github/workflows/deploy.yml`) est lancé toutes les 30
 
 Si aucune détection n'est disponible, ni fraîche ni reprise, le run échoue avant le déploiement : le site garde sa version précédente. Chaque source a un délai de réponse limité, pour que la construction ne dépasse pas une dizaine de minutes même si toutes les sources traînent. L'adresse `veille-feux-foret.hamonthibaud.workers.dev` suppose que le sous-domaine `hamonthibaud.workers.dev` du compte Cloudflare existe déjà, ce qui est le cas.
 
-**Déclencheur.** GitHub retarde ou saute une grande partie des tâches planifiées : du 5 octobre 2026 à 15 h UTC au 6 octobre à 8 h UTC, 2 des 34 runs planifiés de Deploy ont démarré. Un petit Worker distinct, `veille-feux-foret-trigger` (`web/trigger/`), est donc lancé par une tâche planifiée de Cloudflare à 7 et 37 minutes de chaque heure (UTC) et demande à GitHub, par son API, de lancer Deploy sur `main`. Il n'a pas d'adresse publique et ne fait rien d'autre. Le Worker est déployé par le workflow **Deploy trigger** (`.github/workflows/trigger.yml`) quand son code change. Si GitHub refuse la demande (jeton expiré, par exemple), l'invocation échoue et son message reste 3 jours dans les journaux du Worker chez Cloudflare (Workers & Pages, `veille-feux-foret-trigger`, Logs) ; la planification GitHub continue de lancer Deploy quand elle le peut.
+**Déclencheur.** GitHub retarde ou saute une grande partie des tâches planifiées : du 5 octobre 2026 à 15 h UTC au 6 octobre à 8 h UTC, 2 des 34 runs planifiés de Deploy ont démarré. Un petit Worker distinct, `veille-feux-foret-trigger` (`web/trigger/`), est donc lancé par une tâche planifiée de Cloudflare à 7 et 37 minutes de chaque heure (UTC) et demande à GitHub, par son API, de lancer Deploy sur `main`. Il n'a pas d'adresse publique et ne fait rien d'autre. Le Worker est déployé par le workflow **Deploy trigger** (`.github/workflows/trigger.yml`) quand son code change. Du 7 octobre 2026 à 15 h 37 UTC au 10 octobre à 17 h 07 UTC, il a lancé Deploy à chacun des 148 passages prévus (détail dans TESTS.md). Si GitHub refuse la demande (jeton expiré, par exemple), l'invocation échoue et son message reste 3 jours dans les journaux du Worker chez Cloudflare (Workers & Pages, `veille-feux-foret-trigger`, Logs) ; la planification GitHub continue de lancer Deploy quand elle le peut.
 
 Son seul secret, `GITHUB_TOKEN`, est créé une fois à la main :
 
@@ -85,7 +131,8 @@ npm run serve        # sert le build avec le moteur de Cloudflare et ses en-têt
 npm test             # tests unitaires avec couverture
 npx playwright install chromium firefox webkit
 npm run test:e2e     # tests end-to-end sur le build local
-npm run captures     # captures d'écran du build (npm run serve doit tourner)
+npm run captures     # captures et animation du build (npm run serve doit tourner)
+npm run captures:demo  # captures et animation du site en ligne
 ```
 
 Les tests end-to-end n'interrogent aucun serveur tiers : les fonds de carte sont remplacés par un style local minimal, et les fichiers de données sont ceux que le pipeline écrit à partir de la capture du 3 octobre 2026 (`web/e2e/fixtures/`, produits par `tools/build_web_fixtures.py`). Les captures d'écran, elles, chargent les vrais fonds de carte et demandent donc un accès réseau.
@@ -107,7 +154,7 @@ npx playwright install chromium firefox webkit
 npm run test:e2e
 ```
 
-Captures d'écran sous Windows : lancer `npm run serve` dans un premier terminal, puis `npm run captures` dans un second, depuis le dossier `web`.
+Captures d'écran sous Windows : lancer `npm run serve` dans un premier terminal, puis `npm run captures` dans un second, depuis le dossier `web`. Pour le site en ligne, `npm run captures:demo` suffit, sans serveur local. Chacune écrit cinq captures et `interactions.gif` : `npm run captures` dans `docs/captures/build/` (données de test, pour comparer avant et après un changement), `npm run captures:demo` dans `docs/captures/en-ligne/` (images du README).
 
 Si PowerShell refuse `Activate.ps1`, lancer d'abord `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass`, qui n'autorise les scripts que pour la fenêtre en cours.
 
@@ -127,7 +174,7 @@ Détail des éléments repris, sources de données et licences : [CREDITS.md](CR
 
 ## Limites connues
 
-- La mise à jour dépend du déclencheur Cloudflare et de la disponibilité des machines de GitHub Actions : un run demandé peut attendre une machine, et le 5 octobre 2026 au soir deux jobs de la PR n°9 n'en ont trouvé aucune en 15 minutes (voir TESTS.md). Si le jeton du déclencheur expire, seule reste la planification GitHub, très irrégulière, que GitHub désactive en plus dans un dépôt public resté 60 jours sans activité. La page signale alors des données en retard, puis anciennes.
+- La mise à jour dépend du déclencheur Cloudflare et de GitHub : un run demandé peut attendre une machine (le 5 octobre 2026 au soir, deux jobs de la PR n°9 n'en ont trouvé aucune en 15 minutes), et le 7 octobre l'API de lancement de GitHub a répondu par une erreur interne au moins de 15 h 07 à 15 h 13 UTC, le bouton de lancement de son interface échouant encore vers 15 h 17 (voir TESTS.md). Si le jeton du déclencheur expire, seule reste la planification GitHub, très irrégulière, que GitHub désactive en plus dans un dépôt public resté 60 jours sans activité. La page signale alors des données en retard, puis anciennes.
 - Si la vérification qui suit un déploiement échoue, la version déployée reste en ligne : il n'y a pas de retour automatique à la précédente. Le run échoue et GitHub prévient le mainteneur par courriel.
 - Un commit poussé sur `main` est déployé sans attendre la CI de ce commit : seules des PR dont la CI est passée sont fusionnées dans `main`.
 - Une détection FIRMS est une anomalie thermique vue par satellite, pas forcément un feu de forêt. Les sites industriels connus sont écartés, mais la liste n'est pas complète : sur deux captures à deux jours d'intervalle, 4 des 5 foyers se trouvaient au même endroit, ce qui évoque des sources de chaleur permanentes non encore identifiées.
