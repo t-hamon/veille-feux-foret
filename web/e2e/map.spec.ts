@@ -211,6 +211,11 @@ test.describe("degraded data", () => {
       await expect(status(page)).toContainText("1 source en échec");
       await expect(status(page).locator('li[data-ok="false"]')).toHaveCount(1);
       await expect(status(page).locator('li[data-ok="false"]')).toContainText("NOAA-21");
+      // A short reason in French, never the technical message of the pipeline.
+      await expect(status(page).locator('li[data-ok="false"]')).toContainText(
+        "serveur injoignable",
+      );
+      await expect(status(page)).not.toContainText("URLError");
       await expect(page.locator("#foyers li").first()).toBeVisible();
     });
   });

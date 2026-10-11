@@ -7,6 +7,7 @@ responses are read in chunks up to a size cap.
 
 from __future__ import annotations
 
+import http.client
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -21,6 +22,18 @@ CHUNK_SIZE = 64 * 1024
 
 class FetchError(Exception):
     """Raised when a URL cannot be fetched safely or completely."""
+
+
+class HttpStatusError(FetchError):
+    """The server answered with another status than 200."""
+
+    def __init__(self, status: int, url: str) -> None:
+        super().__init__(f"HTTP {status} for {url}")
+        self.status = status
+
+
+class ResponseTooLargeError(FetchError):
+    """The response went over the size cap."""
 
 
 def check_url(url: str) -> None:
@@ -65,7 +78,7 @@ def read_limited(stream: IO[bytes], max_bytes: int) -> bytes:
             break
         total += len(chunk)
         if total > max_bytes:
-            raise FetchError(f"response larger than {max_bytes} bytes")
+            raise ResponseTooLargeError(f"response larger than {max_bytes} bytes")
         chunks.append(chunk)
     return b"".join(chunks)
 
@@ -76,6 +89,8 @@ FETCH_ERRORS: tuple[type[BaseException], ...] = (
     urllib.error.URLError,
     TimeoutError,
     OSError,
+    # Response cut short (IncompleteRead) or not HTTP at all (BadStatusLine...).
+    http.client.HTTPException,
 )
 
 
@@ -90,5 +105,5 @@ def fetch(
     with opener(request, timeout) as response:
         status = int(getattr(response, "status", 200))
         if status != 200:
-            raise FetchError(f"HTTP {status} for {url}")
+            raise HttpStatusError(status, url)
         return status, read_limited(response, max_bytes)

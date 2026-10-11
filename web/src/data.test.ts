@@ -68,7 +68,7 @@ describe("files written by the pipeline", () => {
     const snpp = status.sources.find((s) => s.id === "firms_viirs_snpp");
     expect(snpp?.ok).toBe(false);
     expect(snpp?.updatedAt).toBeNull();
-    expect(snpp?.error).toContain("URLError");
+    expect(snpp?.error).toBe("serveur injoignable");
   });
 
   it("keeps every detection, foyer and outline", () => {
