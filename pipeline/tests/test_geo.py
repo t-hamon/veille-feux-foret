@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import math
+
 import pytest
 
-from veille_feux import geo
+from veille_feux import geo, sources
 from veille_feux.geo import IndustrialSite, Outline
 
 FRANCE = geo.load_france()
@@ -120,3 +122,63 @@ def test_industrial_site_at() -> None:
     site = IndustrialSite("test", 45.0, 5.0, 2.0)
     assert geo.industrial_site_at(45.01, 5.01, [site]) is site
     assert geo.industrial_site_at(45.1, 5.1, [site]) is None
+
+
+SQUARE = Outline.from_rings([[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]])
+
+
+def cell_corners(
+    lat: float, lon: float, south: float, west: float, step: float
+) -> set[tuple[float, float]]:
+    """The four nodes of the grid cell holding the point."""
+    i = math.floor((lat - south) / step)
+    j = math.floor((lon - west) / step)
+    lat0, lon0 = round(south + i * step, 4), round(west + j * step, 4)
+    lat1, lon1 = round(lat0 + step, 4), round(lon0 + step, 4)
+    return {(lat0, lon0), (lat0, lon1), (lat1, lon0), (lat1, lon1)}
+
+
+def test_covering_grid_keeps_the_corners_of_every_cell_touching_the_outline() -> None:
+    grid = set(geo.covering_grid(SQUARE, (-2.0, -2.0, 3.0, 3.0), 0.5))
+    for k in range(101):
+        t = k / 100
+        for lat, lon in [(t, 0.0), (t, 1.0), (0.0, t), (1.0, t), (0.5, t)]:
+            assert cell_corners(lat, lon, -2.0, -2.0, 0.5) <= grid, (lat, lon)
+
+
+def test_covering_grid_leaves_out_distant_nodes() -> None:
+    grid = geo.covering_grid(SQUARE, (-2.0, -2.0, 3.0, 3.0), 0.5)
+    assert (-2.0, -2.0) not in grid
+    assert (3.0, 3.0) not in grid
+    assert all(-1.0 <= lat <= 2.0 and -1.0 <= lon <= 2.0 for lat, lon in grid)
+
+
+def test_covering_grid_order_and_rounding() -> None:
+    grid = geo.covering_grid(SQUARE, (-2.0, -2.0, 3.0, 3.0), 0.1)
+    assert list(grid) == sorted(grid)
+    assert all(round(lat, 4) == lat and round(lon, 4) == lon for lat, lon in grid)
+    assert (0.3, 0.7) in grid  # 0.1 * 3 is not 0.3 in floating point
+
+
+@pytest.mark.parametrize("step", [0.0, -0.5])
+def test_covering_grid_needs_a_positive_step(step: float) -> None:
+    with pytest.raises(ValueError, match="positive"):
+        geo.covering_grid(SQUARE, (0.0, 0.0, 1.0, 1.0), step)
+
+
+def test_wind_grid_over_france() -> None:
+    grid = geo.covering_grid(FRANCE.france, sources.FRANCE_BBOX, sources.WIND_GRID_STEP)
+    # The request budget in sources.py is computed for this number of points.
+    assert len(grid) == 415
+    west, south, east, north = sources.FRANCE_BBOX
+    nodes = set(grid)
+    for name, lon, lat in [
+        ("Paris", 2.3522, 48.8566),
+        ("Brest", -4.4861, 48.3904),
+        ("Bonifacio, Corse", 9.1590, 41.3870),
+        ("Dunkerque", 2.3768, 51.0343),
+        ("Menton", 7.4979, 43.7747),
+        ("Hendaye", -1.7740, 43.3580),
+    ]:
+        assert cell_corners(lat, lon, south, west, sources.WIND_GRID_STEP) <= nodes, name
+    assert all(south <= lat <= north and west <= lon <= east for lat, lon in grid)

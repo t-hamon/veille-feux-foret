@@ -22,6 +22,10 @@ FIRMS_URL = "https://firms.modaps.eosdis.nasa.gov/data/active_fire/x.csv"
         "file:///etc/passwd",
         "https://169.254.169.254/latest/meta-data/",
         "https://127.0.0.1/",
+        "http://api.open-meteo.com/v1/meteofrance",
+        "https://api.open-meteo.com.evil.example/v1/meteofrance",
+        "https://open-meteo.com/en/terms",
+        "https://customer-api.open-meteo.com/v1/forecast",
     ],
 )
 def test_check_url_rejects_unsafe_targets(url: str) -> None:
@@ -36,6 +40,8 @@ def test_check_url_rejects_unsafe_targets(url: str) -> None:
         "https://maps.effis.emergency.copernicus.eu/effis?x=1",
         "https://api2.effis.emergency.copernicus.eu/statistics",
         "https://geo.api.gouv.fr/communes?lat=1&lon=2",
+        "https://api.open-meteo.com/v1/meteofrance?latitude=46&longitude=2",
+        "https://api.open-meteo.com/data/meteofrance_arome_france_hd/static/meta.json",
     ],
 )
 def test_check_url_accepts_the_sources(url: str) -> None:
