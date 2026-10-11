@@ -179,12 +179,17 @@ def open_meteo_url(
     return f"{OPEN_METEO_FORECAST}?{query}"
 
 
-def open_meteo_wind_urls(points: Sequence[tuple[float, float]]) -> list[str]:
-    """Wind of the grid points, split into requests of acceptable size."""
+def chunks(points: Sequence[tuple[float, float]]) -> list[Sequence[tuple[float, float]]]:
+    """Points split into requests of acceptable size, in order."""
     return [
-        open_meteo_url(points[i : i + MAX_POINTS_PER_REQUEST], WIND_VARIABLES, "nearest")
+        points[i : i + MAX_POINTS_PER_REQUEST]
         for i in range(0, len(points), MAX_POINTS_PER_REQUEST)
     ]
+
+
+def open_meteo_wind_urls(points: Sequence[tuple[float, float]]) -> list[str]:
+    """Wind of the grid points, split into requests of acceptable size."""
+    return [open_meteo_url(part, WIND_VARIABLES, "nearest") for part in chunks(points)]
 
 
 ALLOWED_HOSTS = frozenset(

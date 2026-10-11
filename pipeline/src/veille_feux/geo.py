@@ -17,6 +17,7 @@ permanent heat sources that FIRMS detects every day) comes from carte-incendies.
 
 from __future__ import annotations
 
+import functools
 import json
 import math
 from collections.abc import Iterable, Sequence
@@ -200,6 +201,14 @@ def load_france() -> FranceArea:
         france=Outline.from_geojson(json.loads(_data_text("metropole.geojson"))),
         neighbours=Outline.from_geojson(json.loads(_data_text("voisins.geojson"))),
     )
+
+
+@functools.cache
+def france_grid(
+    bbox: tuple[float, float, float, float], step: float
+) -> tuple[tuple[float, float], ...]:
+    """``covering_grid`` over metropolitan France, computed once per process (about 1 s)."""
+    return covering_grid(load_france().france, bbox, step)
 
 
 def load_industrial_sites() -> tuple[IndustrialSite, ...]:
