@@ -10,6 +10,8 @@ L'espace de développement n'a pas accès aux serveurs des sources. La capture p
 2. Le workflow télécharge les sources listées dans `pipeline/src/veille_feux/capture.py`, compresse chaque réponse et écrit un `manifest.json` (URL, date, statut HTTP, taille, SHA-256, licence, ou erreur si la source était indisponible).
 3. Le résultat est poussé sur une branche `fixtures/capture-<identifiant du run>`. Rien n'est fusionné automatiquement.
 
+Depuis le lot 2, la capture demande aussi à Open-Meteo la météo aux foyers récents des fichiers FIRMS qu'elle vient d'enregistrer, aux lieux exacts que demanderait la construction des données à l'heure de la capture. Les données de test du site, construites à partir d'une capture, trouvent ainsi la réponse à chacune de leurs requêtes.
+
 La liste des sources est fixée dans le code : le workflow n'accepte aucun paramètre, il ne peut pas servir à télécharger autre chose.
 
 ## Organisation
@@ -25,3 +27,4 @@ La liste des sources est fixée dans le code : le workflow n'accepte aucun param
 | NASA FIRMS (VIIRS, MODIS) | politique de données ouvertes de la NASA | citation demandée et lien vers l'avertissement LANCE |
 | Copernicus EFFIS | CC BY 4.0 | crédit à EFFIS (Commission européenne, Centre commun de recherche) et mention des modifications |
 | geo.api.gouv.fr (recherche de commune) | Licence Ouverte (Etalab) | INSEE (Code officiel géographique) et IGN (ADMIN EXPRESS), avec la date de la donnée |
+| Open-Meteo, modèle AROME France HD de Météo-France | CC BY 4.0 | lien vers open-meteo.com à côté des données, mention du modèle de Météo-France |
