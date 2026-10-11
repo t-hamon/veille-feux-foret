@@ -13,7 +13,7 @@ from tests.helpers import make_opener
 from veille_feux import capture
 from veille_feux.capture import Source
 from veille_feux.http import check_url
-from veille_feux.sources import OPEN_METEO_META
+from veille_feux.sources import OPEN_METEO_META, WEATHER_VARIABLES, open_meteo_url
 
 NOW = dt.datetime(2026, 8, 1, 12, 0, tzinfo=dt.UTC)
 
@@ -121,3 +121,56 @@ def test_main_exit_code(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setattr(capture, "capture", fake_capture_ok)
     assert capture.main([str(tmp_path)]) == 0
     assert calls == [tmp_path]
+
+
+FIRES_NOW = dt.datetime(2026, 10, 11, 17, 21, 23, tzinfo=dt.UTC)
+FIRMS_HEADER = (
+    "latitude,longitude,bright_ti4,scan,track,acq_date,acq_time,satellite,"
+    "confidence,version,bright_ti5,frp,daynight\n"
+)
+
+
+def write_firms(dest: Path) -> None:
+    rows = [
+        f"{lat + k * 0.001:.4f},{lon + k * 0.001:.4f},330.1,0.4,0.4,2026-10-11,{1000 + k},"
+        "N,nominal,2.0NRT,290.2,5.5,D\n"
+        for lat, lon, count in ((43.5297, 5.4474, 4), (44.923, -0.997, 3))
+        for k in range(count)
+    ]
+    dest.mkdir(parents=True, exist_ok=True)
+    with gzip.open(dest / "firms_viirs_snpp_24h.csv.gz", "wb") as handle:
+        handle.write((FIRMS_HEADER + "".join(rows)).encode())
+    # Unreadable files of other feeds are skipped, as the build would record an outage.
+    (dest / "firms_viirs_noaa20_24h.csv.gz").write_bytes(b"not gzip")
+    (dest / "firms_modis_24h.csv.gz").write_bytes(gzip.compress(b"latitude\n")[:-4])
+
+
+def test_fire_weather_is_asked_where_the_build_would(tmp_path: Path) -> None:
+    write_firms(tmp_path)
+    extra = capture.fire_weather_sources(tmp_path, FIRES_NOW)
+    assert [s.id for s in extra] == ["open_meteo_fire_weather_1"]
+    assert extra[0].url == open_meteo_url([(43.53, 5.45), (44.92, -1.0)], WEATHER_VARIABLES, "land")
+    check_url(extra[0].url)
+    # A day later, the clusters are no longer recent: nothing to ask for.
+    assert capture.fire_weather_sources(tmp_path, FIRES_NOW + dt.timedelta(days=1)) == []
+    assert capture.fire_weather_sources(tmp_path / "empty", FIRES_NOW) == []
+
+
+def test_main_adds_the_fire_weather_to_the_manifest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[tuple[list[str], int]] = []
+
+    def fake_capture(
+        sources: Any, dest: Path, now: dt.datetime, entries: Any = None
+    ) -> dict[str, Any]:
+        ids = [s.id for s in sources]
+        calls.append((ids, len(entries or [])))
+        if not entries:
+            write_firms(dest)
+        return {"sources": [*(entries or []), *({"id": i, "ok": True} for i in ids)]}
+
+    monkeypatch.setattr(capture, "capture", fake_capture)
+    assert capture.main([str(tmp_path)], FIRES_NOW + dt.timedelta(microseconds=456)) == 0
+    assert len(calls) == 2
+    assert calls[1] == (["open_meteo_fire_weather_1"], 12)

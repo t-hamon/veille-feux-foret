@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from veille_feux import geo
+from veille_feux import build, geo, meteo
 from veille_feux.http import FETCH_ERRORS, Opener, default_opener, fetch
 from veille_feux.sources import (
     EFFIS_DATED_LAYER,
@@ -33,6 +33,7 @@ from veille_feux.sources import (
     OPEN_METEO_META,
     WEATHER_VARIABLES,
     WIND_GRID_STEP,
+    chunks,
     effis_stats_url,
     effis_wfs_url,
     geo_api_commune_url,
@@ -105,7 +106,7 @@ def default_sources(today: dt.date) -> list[Source]:
         Source("open_meteo_meta", OPEN_METEO_META, "json", 1 * MB, 60, OPEN_METEO_LICENCE)
     )
     # The same requests as the map: the whole wind grid, about 1.5 MB per request.
-    grid = geo.covering_grid(geo.load_france().france, FRANCE_BBOX, WIND_GRID_STEP)
+    grid = geo.france_grid(FRANCE_BBOX, WIND_GRID_STEP)
     sources += [
         Source(f"open_meteo_wind_grid_{number}", url, "json", 16 * MB, 120, OPEN_METEO_LICENCE)
         for number, url in enumerate(open_meteo_wind_urls(grid), start=1)
@@ -123,19 +124,59 @@ def default_sources(today: dt.date) -> list[Source]:
     return sources
 
 
+# A captured FIRMS file that cannot be read (a truncated gzip file ends in EOFError).
+READ_ERRORS: tuple[type[BaseException], ...] = (*build.FIRMS_ERRORS, EOFError)
+
+
+def fire_weather_sources(dest: Path, now: dt.datetime) -> list[Source]:
+    """Weather at the fire clusters of the FIRMS files just captured in ``dest``.
+
+    The places are those the build asks for when it reads these files at the
+    time of the capture: the web test data is built that way, with the 24-hour
+    FIRMS files in place of the 7-day ones, and its weather requests then find
+    their answers in the capture.
+    """
+    area, sites = geo.load_france(), geo.load_industrial_sites()
+    found = []
+    for feed in FIRMS_FEEDS:
+        path = dest / f"firms_{feed.id}_24h.csv.gz"
+        if not path.is_file():
+            continue
+        try:
+            text = gzip.decompress(path.read_bytes()).decode("utf-8")
+            found.extend(build.france_detections(text, feed, area, sites, now))
+        except READ_ERRORS:
+            continue
+    _, clusters, _ = build.clusters_of(found, now)
+    points = list(dict.fromkeys(meteo.fire_point(f) for f in meteo.recent_fires(clusters, now)))
+    return [
+        Source(
+            f"open_meteo_fire_weather_{number}",
+            open_meteo_url(part, WEATHER_VARIABLES, "land"),
+            "json",
+            16 * MB,
+            120,
+            OPEN_METEO_LICENCE,
+        )
+        for number, part in enumerate(chunks(points[: build.MAX_FIRE_POINTS]), start=1)
+    ]
+
+
 def capture(
     sources: Iterable[Source],
     dest: Path,
     now: dt.datetime,
     opener: Opener = default_opener,
+    entries: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Fetch every source, write gzip files and return the manifest.
 
     A failing source is recorded in the manifest instead of stopping the run:
     an outage is itself useful information for the degraded-mode tests.
+    ``entries`` are those of a previous call, kept at the start of the manifest.
     """
     dest.mkdir(parents=True, exist_ok=True)
-    entries: list[dict[str, Any]] = []
+    entries = list(entries or [])
     for source in sources:
         entry: dict[str, Any] = {
             "id": source.id,
@@ -169,12 +210,15 @@ def capture(
     return manifest
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None, now: dt.datetime | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("dest", type=Path, help="directory that receives the samples")
     args = parser.parse_args(argv)
-    now = dt.datetime.now(dt.UTC)
+    now = (now or dt.datetime.now(dt.UTC)).replace(microsecond=0)
     manifest = capture(default_sources(now.date()), args.dest, now)
+    extra = fire_weather_sources(args.dest, now)
+    if extra:
+        manifest = capture(extra, args.dest, now, entries=manifest["sources"])
     for entry in manifest["sources"]:
         state = "ok" if entry["ok"] else f"FAILED ({entry['error']})"
         print(f"{entry['id']}: {state}")
