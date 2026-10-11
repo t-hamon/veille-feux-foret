@@ -26,6 +26,23 @@ Ce fichier consigne les tests du projet et les résultats des dernières exécut
 
 Les contrôles de sécurité (gitleaks, semgrep, bandit, zizmor, OWASP ZAP) sont décrits dans [SECURITY.md](SECURITY.md).
 
+## Après le lot 1b : correctifs
+
+Exécution du 11 octobre 2026 dans l'espace de développement, branche `lot-1b/suites`, sur `main` avec la PR Dependabot n°11 (wrangler 4.141.0 vers 4.145.0) fusionnée localement.
+
+Constat de départ : le run Deploy du 10 octobre à 23:37 UTC (run 38095662957) n'a reçu aucun des 4 flux NASA FIRMS, tous en `URLError: <urlopen error [Errno 101] Network is unreachable>` depuis la machine de GitHub ; 3 sources sur 7 étaient en état normal. Les détections précédentes ont été reprises et signalées comme anciennes, comme prévu, mais la page affichait ce message technique tel quel. Le run suivant, à 00:07 UTC, a reçu les 7 sources, comme tous ceux observés jusqu'à 00:37 UTC. Les captures du README, prises pendant cette panne, ont été refaites après (PR n°12).
+
+Une relecture indépendante de ces correctifs a relevé un défaut plus ancien, qu'elle a reproduit : une réponse coupée en cours de lecture, une ligne FIRMS démesurée ou un JSON EFFIS d'une autre forme que prévu levaient une exception non rattrapée, et toute la construction s'arrêtait, privant de mise à jour les sources qui avaient répondu. Ces cas sont désormais enregistrés comme une panne de la source concernée.
+
+| Test | Résultat |
+|---|---|
+| Pipeline : raison de panne en français pour chaque type d'erreur (réponse HTTP inattendue, réponse trop volumineuse, adresse refusée, délai dépassé, connexion interrompue ou coupée, connexion sécurisée impossible, serveur injoignable dont l'erreur 101 du 10 octobre, réponse inattendue, autre) ; détail technique dans le journal, en annotation « notice » sous GitHub Actions, signes « % » échappés ; couche EFFIS anormalement pauvre expliquée en français ; construction menée à terme malgré une réponse coupée, une ligne FIRMS de 200 000 caractères, des entités EFFIS qui ne sont pas des objets et des statistiques imbriquées sur 100 000 niveaux | 26 nouveaux tests réussis ; au total ruff, mypy, 136 tests, couverture 97 %, avec et sans `GITHUB_ACTIONS` |
+| Données de test du web régénérées par `tools/build_web_fixtures.py` | seul le message d'erreur change, dans les 3 fichiers d'état des scénarios en panne ; outils : 23 tests réussis |
+| Vitest, ESLint, Prettier, build | 62 tests réussis, aucun problème |
+| Playwright Chromium desktop et mobile, avec wrangler 4.145.0, dont la nouvelle vérification que la page affiche « serveur injoignable » et jamais le message technique | 73 scénarios réussis, 1 ignoré volontairement ; Firefox et WebKit ne sont pas installés dans l'espace de développement, ils tournent dans la CI |
+| PR Dependabot n°11 : fusion locale avec `main` | aucun conflit ; seuls wrangler, miniflare et workerd changent de version |
+| Surcharge d'`undici` retirée | `package-lock.json` identique : miniflare 5.20260930.0-alpha demande lui-même `undici` 7.29.1 ; `npm audit` : aucune vulnérabilité ; la surcharge de `sharp` reste nécessaire (miniflare fixe toujours 0.35.4) |
+
 ## Résultats du lot 1b : clôture
 
 Exécution du 10 octobre 2026 dans l'espace de développement, branche `lot-1b/cloture`.
