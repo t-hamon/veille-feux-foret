@@ -16,17 +16,30 @@ Products written to the output directory:
 from __future__ import annotations
 
 import argparse
+import csv
 import datetime as dt
+import http.client
 import json
+import os
 import shutil
+import ssl
 import sys
+import urllib.error
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from veille_feux import effis, firms, foyers, geo
-from veille_feux.http import FETCH_ERRORS, Opener, default_opener, fetch
+from veille_feux.http import (
+    FETCH_ERRORS,
+    FetchError,
+    HttpStatusError,
+    Opener,
+    ResponseTooLargeError,
+    default_opener,
+    fetch,
+)
 from veille_feux.sources import (
     EFFIS_DATED_LAYER,
     EFFIS_NRT_LAYER,
@@ -52,12 +65,24 @@ BURNED = "surfaces-brulees.geojson"
 SUMMARY = "bilan.json"
 STATUS = "etat.json"
 
+# A source that answers something unexpected is recorded as down; it never
+# stops the build, so the other sources are still updated.
 FIRMS_ERRORS: tuple[type[BaseException], ...] = (
     *FETCH_ERRORS,
     firms.FirmsFormatError,
     UnicodeDecodeError,
+    csv.Error,
 )
-EFFIS_ERRORS: tuple[type[BaseException], ...] = (*FETCH_ERRORS, effis.EffisFormatError, ValueError)
+EFFIS_ERRORS: tuple[type[BaseException], ...] = (
+    *FETCH_ERRORS,
+    effis.EffisFormatError,
+    ValueError,
+    # JSON nested too deeply, or valid JSON of another shape than expected.
+    RecursionError,
+    TypeError,
+    AttributeError,
+    KeyError,
+)
 
 SOURCE_LABELS = {
     **{f"firms_{feed.id}": f"NASA FIRMS, {feed.label}" for feed in FIRMS_FEEDS},
@@ -97,6 +122,62 @@ def _read_json(path: Path | None) -> Any:
 
 def _short_error(exc: BaseException) -> str:
     return f"{type(exc).__name__}: {exc}"[:300]
+
+
+def _log_detail(source_id: str, detail: str) -> None:
+    """Technical detail of an outage, for the maintainer.
+
+    In GitHub Actions it is written as a notice annotation, readable in the run
+    summary without opening the log (percent signs escaped as the workflow
+    command format requires); elsewhere as a plain line.
+    """
+    text = _one_line(detail)
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        print(f"::notice title=Source {source_id} (detail)::{text.replace('%', '%25')}")
+    else:
+        print(f"{source_id}: {text}")
+
+
+def _public_error(exc: BaseException) -> str:
+    """Reason of a source outage, in French, as shown on the page.
+
+    The technical detail (exception type and message) only goes to the log of
+    the workflow: visitors get a short, stable reason instead.
+    """
+    if isinstance(exc, HttpStatusError):
+        return f"réponse HTTP {exc.status} inattendue"
+    if isinstance(exc, urllib.error.HTTPError):
+        return f"le serveur a répondu par une erreur (HTTP {exc.code})"
+    if isinstance(exc, ResponseTooLargeError):
+        return "réponse trop volumineuse"
+    if isinstance(exc, FetchError):
+        return "adresse refusée par les contrôles de sécurité"
+    cause = exc.reason if isinstance(exc, urllib.error.URLError) else exc
+    if isinstance(cause, TimeoutError):
+        return "délai de réponse dépassé"
+    if isinstance(
+        cause,
+        (ConnectionResetError, ConnectionAbortedError, BrokenPipeError, http.client.IncompleteRead),
+    ):
+        return "connexion interrompue"
+    if isinstance(cause, ssl.SSLError):
+        return "connexion sécurisée impossible"
+    if isinstance(exc, (urllib.error.URLError, OSError)):
+        return "serveur injoignable"
+    if isinstance(
+        exc,
+        (
+            ValueError,
+            http.client.HTTPException,
+            csv.Error,
+            RecursionError,
+            TypeError,
+            AttributeError,
+            KeyError,
+        ),
+    ):
+        return "réponse du serveur inattendue"
+    return "erreur inattendue"
 
 
 def _one_line(value: Any, limit: int = 300) -> str:
@@ -165,6 +246,11 @@ class Context:
             "count": count if ok else previous.get("count"),
             "error": None if ok else error,
         }
+
+    def fail(self, source_id: str, exc: BaseException) -> None:
+        """Record an outage: short reason in the status file, detail in the log."""
+        _log_detail(source_id, _short_error(exc))
+        self.record(source_id, False, error=_public_error(exc))
 
     def carry(self, source_id: str) -> None:
         """Keep the previous state of a source that was not fetched this run."""
@@ -248,7 +334,7 @@ def build_fires(ctx: Context, area: geo.FranceArea, sites: tuple[geo.IndustrialS
             text = ctx.get(feed.url("7d"), 60 * MB, FIRMS_TIMEOUT).decode("utf-8")
             parsed, _ = firms.parse_csv(text, feed.id, feed.sensor)
         except FIRMS_ERRORS as exc:
-            ctx.record(source_id, False, error=_short_error(exc))
+            ctx.fail(source_id, exc)
             continue
         kept, _ = firms.select_france(parsed, area, sites)
         recent = [d for d in kept if ctx.now - d.acquired <= WINDOW]
@@ -314,13 +400,17 @@ def _burned_layer(
     try:
         features, _ = load(json.loads(ctx.get(url, 120 * MB, EFFIS_TIMEOUT)))
     except EFFIS_ERRORS as exc:
-        ctx.record(source_id, False, error=_short_error(exc))
+        ctx.fail(source_id, exc)
         return previous
     if previous and len(features) < len(previous) * KEEP_RATIO:
+        _log_detail(source_id, f"{len(features)} areas against {len(previous)} before, not trusted")
         ctx.record(
             source_id,
             False,
-            error=f"{len(features)} areas against {len(previous)} before, result not trusted",
+            error=(
+                f"couche anormalement pauvre, non retenue : {len(features)} surfaces "
+                f"contre {len(previous)} la fois précédente"
+            ),
         )
         return previous
     ctx.record(source_id, True, count=len(features))
@@ -351,7 +441,7 @@ def build_summary(ctx: Context) -> None:
         document = json.loads(ctx.get(effis_stats_url(ctx.now.year), 5 * MB, 60))
         summary = effis.national_summary(document, ctx.now.date())
     except EFFIS_ERRORS as exc:
-        ctx.record(source_id, False, error=_short_error(exc))
+        ctx.fail(source_id, exc)
         ctx.copy_previous(SUMMARY)
         return
     ctx.record(source_id, True, count=summary.weeks_counted)
