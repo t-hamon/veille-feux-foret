@@ -8,6 +8,9 @@ extracts of the pipeline fixtures. Degraded scenarios are produced the same
 way, by making some sources fail: the files and etat.json are then exactly
 what the pipeline writes in that situation, nothing is edited by hand.
 
+That capture predates the Open-Meteo sources of lot 2: the build runs without
+them (with_weather=False), as it did on 3 October.
+
 Running the script again gives the same files.
 
 Usage: python tools/build_web_fixtures.py OUT_DIR
@@ -88,7 +91,7 @@ def main(argv: list[str]) -> int:
         target = out / name
         if target.exists():
             shutil.rmtree(target)
-        build.build(target, None, CAPTURED_AT, _opener(_bodies(failing)))
+        build.build(target, None, CAPTURED_AT, _opener(_bodies(failing)), with_weather=False)
         print(f"{name}: {', '.join(sorted(p.name for p in target.iterdir()))}")
     return 0
 

@@ -49,13 +49,14 @@ def read(path: Path) -> Any:
 
 def run(out: Path, bodies: dict[str, bytes | Exception], previous: Path | None = None,
         now: dt.datetime = NOW) -> dict[str, Any]:  # fmt: skip
-    return build.build(out, previous, now, make_opener(bodies))
+    """Build on the 3 October capture, which predates the Open-Meteo sources."""
+    return build.build(out, previous, now, make_opener(bodies), with_weather=False)
 
 
 def test_all_sources_answer(tmp_path: Path) -> None:
     status = run(tmp_path, real_bodies())
     assert all(entry["ok"] for entry in status["sources"].values())
-    assert set(status["sources"]) == set(build.SOURCE_LABELS)
+    assert set(status["sources"]) == set(build.SOURCE_LABELS) - set(build.WEATHER_SOURCES)
     assert status["files"] == sorted(
         [build.DETECTIONS, build.FOYERS, build.OUTLINES, build.BURNED, build.SUMMARY]
     )
