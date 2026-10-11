@@ -30,6 +30,8 @@ Les contrôles de sécurité (gitleaks, semgrep, bandit, zizmor, OWASP ZAP) sont
 
 Exécution du 11 octobre 2026 dans l'espace de développement, branche `lot-1b/suites`, sur `main` avec la PR Dependabot n°11 (wrangler 4.141.0 vers 4.145.0) fusionnée localement.
 
+Avant sa fusion, Dependabot a porté la PR n°11 à wrangler 4.147.0 (miniflare 5.20261001.0-alpha, publié le 2 octobre). Les conclusions restent valables avec cette version : miniflare demande toujours lui-même `undici` 7.29.1 et fixe toujours `sharp` en 0.35.4, et le retrait de la surcharge d'`undici` ne change pas le fichier de verrouillage. La CI de la PR n°13, exécutée avec wrangler 4.147.0, a réussi tous ses contrôles (Firefox et WebKit compris) ; les essais locaux ci-dessous l'ont été avec 4.145.0.
+
 Constat de départ : le run Deploy du 10 octobre à 23:37 UTC (run 38095662957) n'a reçu aucun des 4 flux NASA FIRMS, tous en `URLError: <urlopen error [Errno 101] Network is unreachable>` depuis la machine de GitHub ; 3 sources sur 7 étaient en état normal. Les détections précédentes ont été reprises et signalées comme anciennes, comme prévu, mais la page affichait ce message technique tel quel. Le run suivant, à 00:07 UTC, a reçu les 7 sources, comme tous ceux observés jusqu'à 00:37 UTC. Les captures du README, prises pendant cette panne, ont été refaites après (PR n°12).
 
 Une relecture indépendante de ces correctifs a relevé un défaut plus ancien, qu'elle a reproduit : une réponse coupée en cours de lecture, une ligne FIRMS démesurée ou un JSON EFFIS d'une autre forme que prévu levaient une exception non rattrapée, et toute la construction s'arrêtait, privant de mise à jour les sources qui avaient répondu. Ces cas sont désormais enregistrés comme une panne de la source concernée.
