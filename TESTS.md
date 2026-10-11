@@ -26,6 +26,20 @@ Ce fichier consigne les tests du projet et les résultats des dernières exécut
 
 Les contrôles de sécurité (gitleaks, semgrep, bandit, zizmor, OWASP ZAP) sont décrits dans [SECURITY.md](SECURITY.md).
 
+## Résultats du lot 1b : clôture
+
+Exécution du 10 octobre 2026 dans l'espace de développement, branche `lot-1b/cloture`.
+
+| Test | Résultat |
+|---|---|
+| `scripts/captures.mjs` sur le build local servi par `wrangler dev`, Chromium, fonds de carte remplacés par le style local des tests end-to-end (les vrais ne sont pas joignables depuis l'espace de développement), copie temporaire du script ; option inconnue refusée (code de sortie 2) | 5 captures écrites ; animation de 31 images (29 après fusion des images identiques par `sharp`), 17 secondes, 960 pixels de large ; images vérifiées sur un échantillon : vue de la France, frise de la première heure à la dernière, surfaces brûlées, vol vers le foyer n°1 et sa fiche |
+| `sharp` déclaré en dépendance de développement (0.35.5, déjà installé) | seule la liste des dépendances de `web` change dans `package-lock.json`, aucun paquet ajouté ; `npm audit` : aucune vulnérabilité |
+| ESLint et Prettier sur le script | aucun problème |
+
+| Non exécuté | Raison | Quand |
+|---|---|---|
+| Captures et animation avec les vrais fonds de carte et les données en ligne | l'espace de développement ne joint ni le site ni les serveurs de fonds de carte | prises par le mainteneur avec `npm run captures:demo` dans `docs/captures/en-ligne/`, dans la même PR |
+
 ## Résultats du lot 1b : déclencheur des mises à jour
 
 Exécution du 6 octobre 2026 dans l'espace de développement, branche `lot-1b/declencheur`.
@@ -52,10 +66,20 @@ Le 7 octobre, `npm ci` a signalé une faille de sévérité élevée publiée le
 
 Une relecture indépendante a relevé d'autres défauts, corrigés avant la livraison : journaux du Worker désactivés par wrangler à chaque déploiement faute de réglage (un jeton expiré serait passé inaperçu), appel prévu à 0 et 30 minutes, heures les plus chargées de GitHub, aucun contrôle automatique des exports du Worker ni de sa configuration, portée du jeton sous-estimée dans SECURITY.md, type de la variable chez Cloudflare non précisé.
 
-| Non exécuté | Raison | Quand |
-|---|---|---|
-| Déploiement du Worker et de sa tâche planifiée | nécessite les identifiants Cloudflare, disponibles seulement dans l'environnement `production` | à la fusion, par le workflow **Deploy trigger** |
-| Lancement réel de Deploy par le Worker | nécessite le jeton GitHub, créé par le mainteneur après le déploiement du Worker | résultats consignés après les premiers runs lancés par le déclencheur |
+### Après la fusion de la PR n°10
+
+CI de la PR n°10 : tous les contrôles réussis, audit des dépendances compris. Workflow **Deploy trigger** du 7 octobre 2026 à 12:16 UTC (run 37619855329) : Worker et tâche planifiée déployés.
+
+| Étape | Constat |
+|---|---|
+| Passages relevés dans les journaux du Worker à 13:37 et 14:07 UTC | demande refusée par GitHub en HTTP 403 « Resource not accessible by personal access token » : il manquait au jeton la permission ou l'accès au dépôt ; corrigé par le mainteneur dans les réglages du jeton, sans en changer la valeur |
+| Passages de 12:37, 13:07 et 14:37 UTC | aucune trace relevée dans les journaux du Worker ni run côté GitHub ; non expliqué |
+| Passage de 15:07 UTC | HTTP 500 de GitHub, corps vide. À 15:13 UTC, l'API de lancement répondait aussi 500 avec d'autres identifiants que ceux du Worker (Deploy demandé par son nom et par son numéro, Security), sans créer de run ; vers 15:15 UTC, la page d'état de GitHub n'annonçait aucun incident ; vers 15:17 UTC, le bouton « Run workflow » de l'interface de GitHub affichait une page d'erreur. Panne de GitHub, sans lien avec le déclencheur |
+| Du 7 octobre 15:37 UTC au 10 octobre 17:07 UTC | 148 runs lancés par le déclencheur pour 148 passages prévus, aucun manqué, au plus 30 minutes entre deux runs ; chaque run démarre 19 à 20 secondes après l'heure prévue ; durée médiane 65 secondes |
+| Résultats de ces 148 runs | 147 réussis ; 1 échec le 9 octobre à 16:37 UTC (run 37960435476) : données construites (7 sources sur 7), puis échec de l'installation des dépendances du job de déploiement (`npm ci --ignore-scripts`, code de sortie 152), donc rien de déployé et la version précédente est restée en ligne ; le run suivant a réussi. Le journal du job n'a pas été lu, la cause n'est pas établie |
+| Planification GitHub de secours, même période | 12 runs, tous réussis, espacés de 3 h 49 à 7 h 40 |
+| Métriques du Worker chez Cloudflare (relevé du mainteneur le 10 octobre, heure non notée) | 47 invocations sur les 24 heures affichées, 0 erreur, 47 appels à `api.github.com` en réponse 2xx ; 48 passages étaient attendus sur 24 heures, mais les runs côté GitHub ne montrent aucun passage manqué |
+| Site en ligne, 10 octobre vers 17:08 UTC, depuis un navigateur | fichier d'état généré à 17:07:31 UTC servi, 25 foyers listés, carte affichée |
 
 ## Résultats du lot 1b, partie 2 : carte
 

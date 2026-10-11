@@ -18,7 +18,8 @@
     "test:e2e": "playwright test",
     "size": "node scripts/bundle-size.mjs",
     "serve": "wrangler dev --ip 127.0.0.1 --port 8787",
-    "captures": "node scripts/captures.mjs"
+    "captures": "node scripts/captures.mjs",
+    "captures:demo": "node scripts/captures.mjs --deployed"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
@@ -30,6 +31,7 @@
     "globals": "^17.13.0",
     "jsdom": "^30.1.1",
     "prettier": "^3.9.9",
+    "sharp": "0.35.5",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.71.0",
     "vite": "^8.3.2",
