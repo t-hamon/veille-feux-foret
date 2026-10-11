@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from veille_feux import geo
 from veille_feux.http import FETCH_ERRORS, Opener, default_opener, fetch
 from veille_feux.sources import (
     EFFIS_DATED_LAYER,
@@ -26,10 +27,17 @@ from veille_feux.sources import (
     EFFIS_NRT_LAYER,
     FIRMS_FEEDS,
     FIRMS_LICENCE,
+    FRANCE_BBOX,
     GEO_API_LICENCE,
+    OPEN_METEO_LICENCE,
+    OPEN_METEO_META,
+    WEATHER_VARIABLES,
+    WIND_GRID_STEP,
     effis_stats_url,
     effis_wfs_url,
     geo_api_commune_url,
+    open_meteo_url,
+    open_meteo_wind_urls,
 )
 
 MB = 1024 * 1024
@@ -38,6 +46,10 @@ MB = 1024 * 1024
 # name fire clusters. Any point inside France would do; a fixed one keeps the
 # capture reproducible.
 GEO_SAMPLE_POINT = (43.5297, 5.4474)
+# Two fixed points for a sample of the weather asked for each fire cluster: the
+# point above and one in the Landes forest. Two points make Open-Meteo answer
+# with a list, as it does for the clusters.
+WEATHER_SAMPLE_POINTS = (GEO_SAMPLE_POINT, (44.923, -0.997))
 
 
 @dataclass(frozen=True)
@@ -89,6 +101,25 @@ def default_sources(today: dt.date) -> list[Source]:
             GEO_API_LICENCE,
         ),
     ]
+    sources.append(
+        Source("open_meteo_meta", OPEN_METEO_META, "json", 1 * MB, 60, OPEN_METEO_LICENCE)
+    )
+    # The same requests as the map: the whole wind grid, about 1.5 MB per request.
+    grid = geo.covering_grid(geo.load_france().france, FRANCE_BBOX, WIND_GRID_STEP)
+    sources += [
+        Source(f"open_meteo_wind_grid_{number}", url, "json", 16 * MB, 120, OPEN_METEO_LICENCE)
+        for number, url in enumerate(open_meteo_wind_urls(grid), start=1)
+    ]
+    sources.append(
+        Source(
+            "open_meteo_weather_sample",
+            open_meteo_url(WEATHER_SAMPLE_POINTS, WEATHER_VARIABLES, "land"),
+            "json",
+            1 * MB,
+            60,
+            OPEN_METEO_LICENCE,
+        )
+    )
     return sources
 
 

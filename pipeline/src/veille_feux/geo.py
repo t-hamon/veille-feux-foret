@@ -136,6 +136,37 @@ class FranceArea:
         )
 
 
+def covering_grid(
+    outline: Outline, bbox: tuple[float, float, float, float], step: float
+) -> tuple[tuple[float, float], ...]:
+    """Nodes of a regular grid needed to interpolate a field over the outline.
+
+    The grid starts at the south-west corner of ``bbox`` (west, south, east,
+    north). A node is kept when it lies inside the outline or when the outline
+    comes closer than a cell diagonal: every grid cell that touches the outline
+    then has its four corners, so a value can be interpolated at any point of
+    the outline, coasts and borders included. Nodes are (lat, lon) pairs from
+    south to north, then west to east, rounded to 4 decimals.
+    """
+    if not step > 0:
+        raise ValueError("the grid step must be positive")
+    west, south, east, north = bbox
+    rows = round((north - south) / step)
+    columns = round((east - west) / step)
+    nodes: list[tuple[float, float]] = []
+    for i in range(rows + 1):
+        lat = round(south + i * step, 4)
+        # The cells around the node are widest on their southern edge (north of
+        # the equator): using it keeps the diagonal an upper bound.
+        cell_x = step * KM_PER_DEGREE * math.cos(math.radians(lat - step))
+        diagonal_km = math.hypot(cell_x, step * KM_PER_DEGREE)
+        for j in range(columns + 1):
+            lon = round(west + j * step, 4)
+            if outline.contains(lon, lat) or outline.is_within_km(lon, lat, diagonal_km):
+                nodes.append((lat, lon))
+    return tuple(nodes)
+
+
 @dataclass(frozen=True)
 class IndustrialSite:
     name: str

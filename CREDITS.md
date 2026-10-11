@@ -5,8 +5,8 @@
 | Projet | Auteur | Licence | Ce qui est repris |
 |---|---|---|---|
 | [carte-incendies](https://github.com/lgdlcs/feux-france) ([démo](https://carte-incendies.fr)) | Lucas Legrand (lgdlcs) | MIT | Code d'origine sous licence MIT, réutilisé et modifié (détail ci-dessous). |
-| [Flamap](https://github.com/rozierguillaume/flamap) ([démo](https://flamap.fr)) | Guillaume Rozier (rozierguillaume) | aucune licence déclarée | Inspiration fonctionnelle, réimplémentation indépendante, aucun code repris. Seuls le README et la démo publique ont été consultés. |
-| [feux-france](https://github.com/the20100/feux-france) | Vincent (the20100) | aucune licence visible | Inspiration fonctionnelle, réimplémentation indépendante, aucun code repris. Seul le README a été consulté. |
+| [Flamap](https://github.com/rozierguillaume/flamap) ([démo](https://flamap.fr)) | Guillaume Rozier (rozierguillaume) | aucune licence déclarée | Inspiration fonctionnelle, réimplémentation indépendante, aucun code repris. Ont été consultés : le README, la démo publique et, depuis le 11 octobre 2026, la note de documentation `SOURCES.md` (aucun fichier de code). |
+| [feux-france](https://github.com/the20100/feux-france) | Vincent (the20100) | aucune licence visible | Inspiration fonctionnelle, réimplémentation indépendante, aucun code repris. Ont été consultés : le README et, depuis le 11 octobre 2026, la note de documentation `docs/OMNI.md` (aucun fichier de code). |
 
 ### Éléments repris de carte-incendies
 
@@ -19,6 +19,16 @@
 | Regroupement des détections en foyers (grille de 0,02°, 8-connexité, 3 détections minimum, surface estimée) | `pipeline/src/veille_feux/foyers.py` | ordre et identifiants déterministes, emprise par enveloppe convexe calculée côté données |
 | Lecture des surfaces brûlées EFFIS : permutation des axes, simplification Douglas-Peucker, test France de la couche NRT, garde-fou contre une couche anormalement pauvre | `pipeline/src/veille_feux/effis.py`, `build.py` | les GeometryCollection gardent leur partie polygone au lieu d'être écartées |
 | Bilan national de la saison à partir des statistiques hebdomadaires EFFIS | `pipeline/src/veille_feux/effis.py` | les semaines non encore publiées sont ignorées explicitement |
+
+### Constats repris de la documentation de Flamap
+
+La note `SOURCES.md` de Flamap, lue le 11 octobre 2026, décrit des essais faits par son auteur avec Open-Meteo. Aucun code n'en est repris ; ces constats ont guidé des choix réimplémentés indépendamment.
+
+| Constat | Où il est pris en compte |
+|---|---|
+| Une requête Open-Meteo d'environ 1 000 points est refusée parce que l'adresse est trop longue | `sources.py` : 250 points au plus par requête, coordonnées écrites au plus court |
+
+La note `docs/OMNI.md` de feux-france, lue le même jour, porte sur un autre outil de son auteur et n'a rien apporté au projet.
 
 ## Données géographiques embarquées
 
@@ -34,10 +44,14 @@
 | NASA FIRMS (VIIRS 375 m, MODIS 1 km) | politique de données ouvertes de la NASA, citation et avertissement LANCE | vérifiée, utilisée par la commande de construction des données |
 | Copernicus EFFIS (surfaces brûlées, statistiques) | CC BY 4.0 | vérifiée, utilisée par la commande de construction des données |
 | geo.api.gouv.fr (recherche de commune), service de la DINUM | Licence Ouverte (Etalab) pour les données de la métropole : noms et codes des communes issus du Code officiel géographique de l'INSEE, contours issus d'IGN ADMIN EXPRESS | vérifiée le 3 octobre 2026, utilisée seulement par la capture d'un échantillon |
+| Open-Meteo, modèle AROME France HD de Météo-France (vent, température, humidité, précipitations) | CC BY 4.0, avec un lien vers open-meteo.com à côté des données affichées ; API gratuite réservée à l'usage non commercial, limitée à 600 appels par minute, 5 000 par heure, 10 000 par jour et 300 000 par mois, chaque lieu d'une requête comptant pour un appel | vérifiée le 11 octobre 2026 (pages Terms, Licence et Pricing), utilisée seulement par la capture d'échantillons |
+| Météo-France, API Package Observations (vent mesuré aux stations) | Licence Ouverte 2.0, avec mention de Météo-France et de la date de dernière mise à jour ; compte nominatif et jeton obligatoires, jeton à ne jamais rendre public ; quota de 100 requêtes par minute (porté de 50 à 100 en janvier 2026, à titre expérimental) ; abonnement de 2 ans, à renouveler | vérifiée le 11 octobre 2026 (conditions particulières du portail, version du 1er juin 2024, et licence de l'API), pas encore utilisée |
 
 La licence de geo.api.gouv.fr a été vérifiée dans les dépôts dont le service est construit, [api-geo](https://github.com/datagouv/api-geo), [decoupage-administratif](https://github.com/datagouv/decoupage-administratif) et [contours-administratifs](https://github.com/datagouv/contours-administratifs) : la fiche de l'API sur data.gouv.fr indique un accès ouvert, limité à 50 appels par seconde et par adresse IP, sans nommer de licence. Le code de ces dépôts est sous licence MIT ; il n'est pas repris ici.
 
-Les autres sources (Open-Meteo, Météo-France, orthophotos IGN, Sentinel-2, ADS-B) seront vérifiées avant leur intégration, lot par lot.
+Le site est gratuit, sans compte, sans abonnement ni publicité, et indépendant de toute activité commerciale : il relève de l'usage non commercial défini par Open-Meteo.
+
+Les autres sources (orthophotos IGN, Sentinel-2, ADS-B) seront vérifiées avant leur intégration, lot par lot.
 
 ## Fonds de carte
 

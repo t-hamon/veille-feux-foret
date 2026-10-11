@@ -5,6 +5,7 @@ import gzip
 import json
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
@@ -12,6 +13,7 @@ from tests.helpers import make_opener
 from veille_feux import capture
 from veille_feux.capture import Source
 from veille_feux.http import check_url
+from veille_feux.sources import OPEN_METEO_META
 
 NOW = dt.datetime(2026, 8, 1, 12, 0, tzinfo=dt.UTC)
 
@@ -25,8 +27,8 @@ FIRMS_URL = "https://firms.modaps.eosdis.nasa.gov/data/active_fire/x.csv"
 
 def test_default_sources_are_all_allowed() -> None:
     sources = capture.default_sources(NOW.date())
-    assert len(sources) == 8
-    assert len({s.id for s in sources}) == 8
+    assert len(sources) == 12
+    assert len({s.id for s in sources}) == 12
     for s in sources:
         check_url(s.url)
     stats = next(s for s in sources if s.id == "effis_weekly_stats")
@@ -34,6 +36,21 @@ def test_default_sources_are_all_allowed() -> None:
     assert "country=FRA" in stats.url
     geo = next(s for s in sources if s.id == "geo_api_commune_sample")
     assert geo.url.startswith("https://geo.api.gouv.fr/communes?lat=43.52970&lon=5.44740")
+
+
+def test_open_meteo_sources() -> None:
+    sources = {s.id: s for s in capture.default_sources(NOW.date())}
+    assert sources["open_meteo_meta"].url == OPEN_METEO_META
+    grid = [sources[f"open_meteo_wind_grid_{n}"] for n in (1, 2)]
+    points = sum(len(parse_qs(urlsplit(s.url).query)["latitude"][0].split(",")) for s in grid)
+    assert points == 415
+    weather = parse_qs(urlsplit(sources["open_meteo_weather_sample"].url).query)
+    assert weather["latitude"] == ["43.5297,44.923"]
+    assert weather["cell_selection"] == ["land"]
+    assert weather["hourly"][0].startswith("temperature_2m,")
+    for s in [*grid, sources["open_meteo_meta"], sources["open_meteo_weather_sample"]]:
+        assert s.licence.startswith("CC BY 4.0 (Open-Meteo.com")
+        assert s.extension == "json"
 
 
 def test_firms_ids_match_the_first_capture() -> None:

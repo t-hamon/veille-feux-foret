@@ -26,6 +26,27 @@ Ce fichier consigne les tests du projet et les résultats des dernières exécut
 
 Les contrôles de sécurité (gitleaks, semgrep, bandit, zizmor, OWASP ZAP) sont décrits dans [SECURITY.md](SECURITY.md).
 
+## Résultats du lot 2, partie 1 : capture des réponses d'Open-Meteo
+
+Exécution du 11 octobre 2026 dans l'espace de développement, branche `lot-2/capture-meteo`, Python 3.13.
+
+| Test | Résultat |
+|---|---|
+| ruff (lint et format), mypy strict sur `src` et `tests` | aucun problème |
+| pytest | 160 tests réussis, couverture 97 % (`geo.py` et `sources.py` à 100 %) |
+| Nouveaux tests : grille de vent | chaque maille qui touche la France a ses quatre nœuds, y compris aux pointes et aux côtes (Brest, Bonifacio, Dunkerque, Menton, Hendaye) ; 415 points au pas de 0,5° ; nœuds éloignés écartés ; arrondi stable |
+| Nouveaux tests : requêtes Open-Meteo | paramètres exacts, virgules non encodées, coordonnées arrondies à 4 décimales, refus des points hors emprise (dont NaN et infini), d'une requête vide ou de plus de 250 points ; découpage de la grille en 250 et 165 points ; `api.open-meteo.com` accepté, sous-domaine piège, `http` et autres hôtes d'Open-Meteo refusés |
+| Nouveaux tests : capture | 12 sources aux identifiants uniques, toutes dans la liste blanche ; les deux requêtes de grille portent bien 415 points |
+| bandit sur `pipeline/src` | aucun problème |
+| pip-audit | aucune vulnérabilité connue |
+| Outils CI (`tools/`) : ruff, mypy strict, pytest | 23 tests réussis |
+
+| Non exécuté | Raison | Quand |
+|---|---|---|
+| Capture réelle des réponses d'Open-Meteo | l'espace de développement ne joint pas `api.open-meteo.com` (refus du proxy) | workflow **Capture fixtures**, lancé après la fusion ; les réponses serviront de données de test à la partie suivante |
+| Requêtes construites par le code, envoyées pour de vrai | même raison | idem ; la forme des réponses (liste pour plusieurs points, horodatage Unix, valeurs nulles après la fin de la prévision, 168 heures passées toutes renseignées) a été vérifiée à la main le 11 octobre 2026 depuis un navigateur, sur des requêtes de 1 et 2 points |
+| gitleaks, semgrep, zizmor | exécutés par la CI | workflow `Security` de la PR |
+
 ## Après le lot 1b : correctifs
 
 Exécution du 11 octobre 2026 dans l'espace de développement, branche `lot-1b/suites`, sur `main` avec la PR Dependabot n°11 (wrangler 4.141.0 vers 4.145.0) fusionnée localement.
