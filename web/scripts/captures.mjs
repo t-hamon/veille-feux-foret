@@ -6,9 +6,10 @@
 // - npm run captures: the local build, which must be served first (npm run
 //   build, then npm run serve in another terminal), into docs/captures/build.
 //   The data files are those of the test capture of 3 October 2026
-//   (e2e/fixtures/complet), served in place of /data/, and the clock of the
-//   page is set 20 minutes after that capture, so the pictures can be
-//   compared from one change to the next.
+//   (e2e/fixtures/complet), or of 12 October 2026 for the wind
+//   (e2e/fixtures/vent), served in place of /data/, and the clock of the page
+//   is set 20 minutes after that capture, so the pictures can be compared
+//   from one change to the next.
 // - npm run captures:demo: the deployed site, with its current data, as a
 //   visitor sees it, into docs/captures/en-ligne (the pictures of the README).
 //
@@ -26,8 +27,12 @@ import sharp from "sharp";
 const LOCAL = "http://127.0.0.1:8787/";
 // Same address as SITE_URL in .github/workflows/deploy.yml.
 const DEPLOYED = "https://veille-feux-foret.hamonthibaud.workers.dev/";
-const DATA = join(import.meta.dirname, "..", "e2e", "fixtures", "complet");
-const NOW = new Date("2026-10-03T11:48:00Z");
+const FIXTURES = join(import.meta.dirname, "..", "e2e", "fixtures");
+// Clock of the page for each set of test data: 20 minutes after its capture.
+const NOW = {
+  complet: new Date("2026-10-03T11:48:00Z"),
+  vent: new Date("2026-10-12T01:03:09Z"),
+};
 
 const args = process.argv.slice(2);
 const unknown = args.filter((arg) => arg.startsWith("--") && arg !== "--deployed");
@@ -53,6 +58,21 @@ const SHOTS = [
   },
   { name: "desktop-osm", device: DESKTOP, scheme: "light", hash: "#fond=osm" },
   { name: "mobile-clair", device: devices["Pixel 7"], scheme: "light", hash: "" },
+  {
+    name: "desktop-vent",
+    device: DESKTOP,
+    scheme: "light",
+    hash: "#vent=1&carte=6.00/46.50000/2.50000",
+    data: "vent",
+  },
+  {
+    // Reduced motion: the wind starts as still arrows.
+    name: "desktop-vent-fleches",
+    device: { ...DESKTOP, reducedMotion: "reduce" },
+    scheme: "light",
+    hash: "#vent=1&carte=6.00/46.50000/2.50000",
+    data: "vent",
+  },
 ];
 
 // The GIF: recorded at 1280 x 800, written 960 pixels wide.
@@ -61,18 +81,18 @@ const GIF_WIDTH = 960;
 // Hours between two pictures of the timeline (168 hours in all).
 const GIF_TIMELINE_STEP = 8;
 
-async function open(browser, device, scheme, hash) {
+async function open(browser, device, scheme, hash, data = "complet") {
   const context = await browser.newContext({ ...device, colorScheme: scheme });
   const page = await context.newPage();
   if (!deployed) {
-    await page.clock.setFixedTime(NOW);
+    await page.clock.setFixedTime(NOW[data]);
     await page.route("**/data/*", async (route) => {
       const name = new URL(route.request().url()).pathname.split("/").pop() ?? "";
       try {
         await route.fulfill({
           status: 200,
           contentType: "application/json",
-          body: readFileSync(join(DATA, name)),
+          body: readFileSync(join(FIXTURES, data, name)),
         });
       } catch {
         await route.fulfill({ status: 404, body: "" });
@@ -95,9 +115,16 @@ async function settle(page, milliseconds) {
 
 async function screenshots(browser) {
   for (const shot of SHOTS) {
-    const { context, page } = await open(browser, shot.device, shot.scheme, shot.hash);
+    const { context, page } = await open(browser, shot.device, shot.scheme, shot.hash, shot.data);
     if (shot.hash.includes("foyer=") && (await page.locator("#detail dl").count()) === 0) {
       console.warn(`${shot.name}: no foyer sheet shown (no foyer with this number).`);
+    }
+    if (shot.hash.includes("vent=1")) {
+      await page
+        .locator("#legende-vent[data-state='anime'], #legende-vent[data-state='fixe']")
+        .waitFor();
+      // The particles need a few seconds to draw their trails.
+      await page.waitForTimeout(3000);
     }
     const path = join(OUT, `${shot.name}.png`);
     await page.screenshot({ path });
