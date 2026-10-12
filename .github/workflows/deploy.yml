@@ -63,7 +63,7 @@ jobs:
       - name: Read the data files of the deployed site
         run: |
           mkdir -p previous
-          for name in etat.json detections.geojson foyers.geojson foyers-emprises.geojson surfaces-brulees.geojson bilan.json; do
+          for name in etat.json detections.geojson foyers.geojson foyers-emprises.geojson surfaces-brulees.geojson bilan.json vent.json meteo-foyers.json; do
             if ! curl --fail --silent --show-error --proto '=https' --max-time 60 \
                  --max-filesize 62914560 --output "previous/$name" "$SITE_URL/data/$name"; then
               rm -f "previous/$name"

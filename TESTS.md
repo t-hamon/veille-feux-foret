@@ -26,6 +26,32 @@ Ce fichier consigne les tests du projet et les résultats des dernières exécut
 
 Les contrôles de sécurité (gitleaks, semgrep, bandit, zizmor, OWASP ZAP) sont décrits dans [SECURITY.md](SECURITY.md).
 
+## Résultats du lot 2, partie 2 : vent et météo dans le pipeline
+
+Exécution du 11 octobre 2026 dans l'espace de développement, branche `lot-2/meteo-pipeline`, Python 3.13, sur les réponses réelles de la capture du 11 octobre à 17:21 UTC (run 38159286544, voir `pipeline/tests/fixtures/20261011T1721Z/README.md`).
+
+| Test | Résultat |
+|---|---|
+| ruff (lint et format), mypy strict sur `src` et `tests` | aucun problème |
+| pytest | 220 tests réussis, couverture 98 % (`meteo.py`, `geo.py` et `sources.py` à 100 %, `build.py` et `capture.py` à 99 %) |
+| Lecture des réponses réelles | métadonnées du modèle (calcul de 12:00 UTC, disponible à 15:57 UTC) ; grille de 415 points répondus exactement à leurs coordonnées ; 228 heures demandées, 215 gardées (les 13 dernières, après la fin du calcul, sont vides) ; météo en deux points avec ses 6 variables |
+| Réponses malformées | refusées : nombre de points, ordre, point trop éloigné, coordonnée absente, unités changées (m/s, °F), série de longueur différente, axe horaire vide, irrégulier, décalé ou différent d'un point à l'autre, valeur non numérique ; valeurs hors bornes (vitesse négative, humidité de 140 %, infini) écartées et comptées |
+| Construction | premier passage : 417 appels comptés et annoncés, fichiers écrits ; même calcul du modèle 30 minutes plus tard : aucune requête, fichiers repris ; nouveau foyer : seul son lieu est demandé ; nouveau calcul : tout est redemandé ; calcul annoncé depuis moins de 10 minutes : attente ; métadonnées en panne : fichiers récents gardés, sinon nouvelle demande sans calcul connu |
+| Pannes | grille en panne : fichier précédent repris, source en échec ; sans fichier précédent : pas de fichier de vent, les autres sources continuent ; météo des foyers en panne : météo précédente gardée lieu par lieu avec son propre calcul ; FIRMS en panne : foyers et météo précédents repris ensemble ; limite de 150 lieux par construction : lieux suivants laissés à la construction suivante, ou gardés avec la météo d'un calcul antérieur |
+| Fichiers précédents d'une autre forme | non repris (pas de grille différent, points absents ou en nombre différent, document qui n'est pas un objet) |
+| Capture de la météo aux foyers | lieux identiques à ceux que demande la construction sur les mêmes fichiers FIRMS, à la même heure ; fichiers FIRMS illisibles ignorés ; rien à demander sans foyer récent |
+| Essai sur la capture complète du 11 octobre (FIRMS, EFFIS, Open-Meteo), hors tests | 3 foyers récents ; la requête de météo des foyers est exactement celle que la capture demandera désormais ; `vent.json` : 821 628 octets, 243 652 en gzip |
+| bandit, pip-audit | aucun problème, aucune vulnérabilité connue |
+| Outils CI (`tools/`) : ruff, mypy strict, pytest | 23 tests réussis ; données de test du site régénérées identiques à celles du dépôt |
+
+Premier passage de la CI de la PR n°15 (commit `517ce85`, 12 octobre 2026) : job Pipeline en échec, 4 tests de `test_build_weather.py` refusés. Sous GitHub Actions, la variable `GITHUB_ACTIONS` vaut `true` et la construction écrit ses messages en annotations (`::notice title=...::...`), alors que ces tests attendaient la forme écrite hors de GitHub Actions ; l'espace de développement, où la variable est absente, ne pouvait pas le voir. Correction : ces tests retirent la variable avant de s'exécuter, comme ceux de `test_build.py`, et le seul test du format d'annotation la pose lui-même. La suite du pipeline est désormais lancée dans l'espace de développement avec et sans `GITHUB_ACTIONS=true` : 220 tests réussis dans les deux cas.
+
+| Non exécuté | Raison | Quand |
+|---|---|---|
+| Construction avec les vraies réponses d'Open-Meteo pour la météo des foyers | la capture du 11 octobre ne contenait pas encore ces requêtes ; les tests servent la réponse en deux points pour des foyers placés aux mêmes mailles (voir le README des fixtures) | prochaine capture, après la fusion |
+| Tests du site (Vitest, Playwright, Lighthouse) | aucun code du site ne change et ses données de test sont identiques | CI de la PR |
+| Construction réelle sur GitHub Actions | l'espace de développement ne joint pas les sources | premier run de Deploy après la fusion : annotation « Open-Meteo » et état des deux nouvelles sources à vérifier |
+
 ## Résultats du lot 2, partie 1 : capture des réponses d'Open-Meteo
 
 Exécution du 11 octobre 2026 dans l'espace de développement, branche `lot-2/capture-meteo`, Python 3.13.
