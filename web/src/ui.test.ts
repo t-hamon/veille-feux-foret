@@ -5,6 +5,7 @@ import completEtat from "../e2e/fixtures/complet/etat.json?raw";
 import completFoyers from "../e2e/fixtures/complet/foyers.geojson?raw";
 import completSurfaces from "../e2e/fixtures/complet/surfaces-brulees.geojson?raw";
 import panneEtat from "../e2e/fixtures/firms-en-panne/etat.json?raw";
+import ventEtat from "../e2e/fixtures/vent/etat.json?raw";
 import {
   type Foyer,
   parseBurned,
@@ -83,6 +84,38 @@ describe("status", () => {
     );
     expect(box.querySelector("details")?.open).toBe(true);
     expect(box.querySelectorAll('li[data-ok="false"]')).toHaveLength(4);
+  });
+
+  it("names the weather sources when Open-Meteo fails", () => {
+    const value = parseStatus(JSON.parse(ventEtat));
+    const wind = value.sources.find((s) => s.id === "open_meteo_wind");
+    expect(wind?.ok).toBe(true);
+    // The status of an Open-Meteo outage, as the pipeline writes it.
+    const failed = value.sources.map((s) =>
+      s.id === "open_meteo_wind" ? { ...s, ok: false, error: "serveur injoignable" } : s,
+    );
+    renderStatus(box, {
+      status: { state: "ok", value: { ...value, sources: failed } },
+      rejected: 0,
+      now: new Date(value.generatedAt.getTime() + 5 * 60_000),
+      missingFiles: [],
+    });
+    expect(box.textContent).toContain("1 source en échec");
+    expect(box.textContent).toContain(
+      "Sources concernées : Vent et météo (Open-Meteo, modèle AROME de Météo-France).",
+    );
+    // A source of a group the page does not know is listed, never left unnamed.
+    const unknown = value.sources.map((s) =>
+      s.id === "open_meteo_wind" ? { ...s, id: "nouvelle_source", ok: false } : s,
+    );
+    renderStatus(box, {
+      status: { state: "ok", value: { ...value, sources: unknown } },
+      rejected: 0,
+      now: new Date(value.generatedAt.getTime() + 5 * 60_000),
+      missingFiles: [],
+    });
+    expect(box.textContent).toContain("1 source en échec. Les données affichées");
+    expect(box.textContent).not.toContain("Sources concernées : .");
   });
 
   it("says when nothing could be read, and counts rejected entries", () => {

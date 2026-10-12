@@ -6,7 +6,7 @@ import { BASEMAPS } from "./basemaps";
 import type { BurnedArea, Detection, Foyer, LoadResult, Status, Summary } from "./data";
 import * as format from "./format";
 import type { Basemap } from "./share";
-import { ageMinutes, freshness, groupOf, health } from "./status";
+import { type SourceGroup, ageMinutes, freshness, groupOf, health } from "./status";
 
 type Child = Node | string | null | undefined | false;
 
@@ -41,9 +41,10 @@ export interface StatusModel {
   missingFiles: string[];
 }
 
-const SOURCE_NAMES: Record<string, string> = {
+const SOURCE_NAMES: Record<SourceGroup, string> = {
   firms: "Foyers (NASA FIRMS)",
   effis: "Surfaces brûlées et bilan (EFFIS)",
+  meteo: "Vent et météo (Open-Meteo, modèle AROME de Météo-France)",
 };
 
 export function renderStatus(container: HTMLElement, model: StatusModel): void {
@@ -153,7 +154,8 @@ export function renderStatus(container: HTMLElement, model: StatusModel): void {
         "p",
         { class: "alert" },
         el("strong", {}, `${plural(failed.length, "source", "sources")} en échec. `),
-        `Sources concernées : ${names}. Les données affichées pour ces sources sont les dernières reçues, ou absentes.`,
+        names === "" ? "" : `Sources concernées : ${names}. `,
+        "Les données affichées pour ces sources sont les dernières reçues, ou absentes.",
       ),
     );
   }
