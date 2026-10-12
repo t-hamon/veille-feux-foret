@@ -3,8 +3,9 @@
 // The tests never reach a third-party server: the two base map servers are
 // answered by a minimal local style (a plain background), and any other
 // request leaving the local build fails the test. The data files are those the
-// real pipeline writes from the capture of 3 October 2026, for one scenario
-// (e2e/fixtures/<scenario>/, produced by tools/build_web_fixtures.py).
+// real pipeline writes from a capture, for one scenario (e2e/fixtures/<scenario>/,
+// produced by tools/build_web_fixtures.py): the capture of 3 October 2026, or,
+// for the "vent" scenario, the capture of 12 October 2026 with the wind.
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -12,8 +13,10 @@ import { test as base, expect, type Page, type Route } from "@playwright/test";
 
 export const FIXTURES = join(import.meta.dirname, "fixtures");
 export const GENERATED_AT = new Date("2026-10-03T11:28:00Z");
+export const WIND_GENERATED_AT = new Date("2026-10-12T00:43:09Z");
 
-export type Scenario = "complet" | "firms-partiel" | "firms-en-panne" | "effis-en-panne" | "vide";
+export type Scenario =
+  "complet" | "firms-partiel" | "firms-en-panne" | "effis-en-panne" | "vent" | "vide";
 
 const MAP_HOSTS = ["https://data.geopf.fr", "https://tiles.openfreemap.org"];
 
@@ -149,10 +152,11 @@ export const test = base.extend<Fixtures>({
     },
     { auto: true },
   ],
-  page: async ({ page }, use) => {
-    // The data was generated at 11:28 UTC on 3 October 2026; the clock is set
-    // shortly after, so the page sees fresh data unless a test says otherwise.
-    await page.clock.setFixedTime(new Date(GENERATED_AT.getTime() + 20 * 60_000));
+  page: async ({ page, scenario }, use) => {
+    // The clock is set 20 minutes after the data was generated, so the page
+    // sees fresh data unless a test says otherwise.
+    const generated = scenario === "vent" ? WIND_GENERATED_AT : GENERATED_AT;
+    await page.clock.setFixedTime(new Date(generated.getTime() + 20 * 60_000));
     await use(page);
   },
 });

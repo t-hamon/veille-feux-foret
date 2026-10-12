@@ -398,6 +398,15 @@ select,
   accent-color: var(--accent);
 }
 
+/* The map and the notices shown over it: notices are placed from the top of
+   the map, whatever the height of the toolbar above it. */
+.map-frame {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+}
+
 .map {
   position: relative;
   flex: 1;
@@ -418,11 +427,12 @@ select,
 
 .map-notice {
   position: absolute;
-  top: 4.5rem;
+  top: 0.75rem;
   left: 50%;
   transform: translateX(-50%);
   z-index: 3;
-  max-width: min(36rem, 90%);
+  /* Room is left on the right for the zoom buttons of the map. */
+  max-width: min(36rem, calc(100% - 7rem));
   padding: 0.5rem 0.75rem;
   background: var(--surface);
   border: 1px solid var(--warning-border);
@@ -534,6 +544,17 @@ select,
 .swatch-nrt {
   background: rgb(191 54 12 / 45%);
   border: 1px dashed #bf360c;
+}
+
+/* Wind lines are drawn on a light map: each swatch sits on a light band, so
+   the dark blues stay visible on the dark theme too. */
+.swatch-wind {
+  width: 1.4rem;
+  height: 0.3rem;
+  margin: 0 0.25rem;
+  border: 0;
+  border-radius: 2px;
+  box-shadow: 0 0 0 0.25rem #ebe8e3;
 }
 
 .attribution {
