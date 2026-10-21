@@ -26,6 +26,42 @@ Ce fichier consigne les tests du projet et les résultats des dernières exécut
 
 Les contrôles de sécurité (gitleaks, semgrep, bandit, zizmor, OWASP ZAP) sont décrits dans [SECURITY.md](SECURITY.md).
 
+## Maintenance d'octobre 2026 : runs du 12 au 21 octobre
+
+Relevé fait le 21 octobre 2026 par l'API de GitHub (runs, jobs et annotations), du 12 octobre à 02:07 UTC au 21 octobre à 14:37 UTC. Les journaux des jobs ne sont pas téléchargeables depuis l'espace de développement : ceux des trois échecs de Deploy ont été lus par le mainteneur dans l'interface de GitHub.
+
+| Constat | Détail |
+|---|---|
+| Deploy | 508 runs (457 lancés par le déclencheur Cloudflare, 51 par la planification GitHub), jamais plus de 41 minutes entre le lancement de deux runs ; 505 réussis, 3 échecs, tous à l'étape de déploiement, la version précédente restant en ligne et le run suivant réussissant |
+| Échec du 12 octobre, 13:07 UTC | l'API de Cloudflare répond « 200 OK » à la liste des déploiements avec un contenu que wrangler ne sait pas lire (« Received a malformed response from the API ») |
+| Échec du 17 octobre, 04:56 UTC | Cloudflare refuse l'envoi des fichiers du site : `401 Unauthorized` sur `/workers/assets/upload`, cinq fois de suite ; le run de 05:07 réussit avec le même jeton |
+| Échec du 20 octobre, 17:07 UTC | `npm ci --ignore-scripts` installe 238 paquets au lieu de 239 : il manque `@cloudflare/workerd-linux-64`, dépendance optionnelle de `workerd`, et wrangler s'arrête au bout d'une seconde. npm continue quand une dépendance optionnelle ne s'installe pas, et le script d'installation de `workerd`, qui irait la chercher, n'est pas lancé dans ce job. Reproduit dans l'espace de développement en retirant ce paquet : même message d'erreur |
+| Sources | 473 runs avec 9 sources sur 9 ; 26 runs (5 %) sans NASA FIRMS, les quatre flux ensemble (`Network is unreachable` depuis la machine GitHub), jamais deux runs de suite ; 9 runs avec un délai dépassé ou une réponse illisible d'Open-Meteo (8 pour la météo des foyers, 2 pour la grille de vent, dont un run pour les deux). Chaque fois, les données précédentes ont été reprises et signalées comme anciennes |
+| Appels à Open-Meteo | 36 712 sur la période, au plus 436 par construction, soit environ 3 900 par jour : sous les limites de 600 par minute, 10 000 par jour et 300 000 par mois |
+| Security, scan ZAP du site déployé | échec les 12 et 19 octobre sur la règle 10015, informative, relevée sur la page et `robots.txt`. Ce scan hebdomadaire n'avait encore jamais réussi : il a été ajouté après le 5 octobre |
+| CI de la PR Dependabot n°18 (Playwright 1.64.0) | arrêtée par le contrôle du projet : l'image Playwright de la CI était restée en 1.63.0 |
+| `npm audit` sur `main` | depuis le 20 octobre, avis de sévérité élevée sur vite 8.3.0 à 8.3.2 (code de launch-editor inclus dans vite) : toute nouvelle PR échouerait à l'étape d'audit |
+
+Corrections, branche `lot-2/maintenance-ci`, exécution du 21 octobre 2026 dans l'espace de développement :
+
+| Test | Résultat |
+|---|---|
+| Installation de wrangler (Deploy et Deploy trigger), simulée avec un faux `npm` | paquet présent au 1er essai : 1 installation ; au 2e ou au 3e : réussite après 1 ou 2 avertissements ; jamais présent ou `npm ci` en échec : 3 essais puis erreur, étape en échec |
+| Déploiement (Deploy et Deploy trigger), simulé avec un faux `npx` | réussite au 1er essai sans pause ; au 3e après 2 avertissements ; 3 échecs : erreur, étape en échec |
+| zizmor 1.30.1 sur les workflows | aucun problème |
+| Outils CI (`tools/`) : ruff, mypy strict, pytest | 25 tests réussis, dont 2 nouveaux : en-têtes de cache attendus d'après `web/public/_headers` et la valeur relevée sur le site en ligne, page ou données gardées en cache refusées |
+| Règle ZAP 10015 | code de la règle lu le 21 octobre 2026 : ne regarde que les réponses HTTPS et demande `no-store`, `no-cache` et `must-revalidate` ; build local servi par wrangler et site en ligne (relevé par le mainteneur avec `curl.exe -sI`) envoient tous deux `public, max-age=0, must-revalidate` pour la page |
+| vite 8.3.3 | `npm audit` : aucune vulnérabilité ; fichiers construits identiques à ceux de vite 8.3.2 (mêmes noms à empreinte que sur le site en ligne) ; `package.json` et `package-lock.json` identiques à ceux de la PR Dependabot n°20 |
+| Playwright 1.64.0 | `package.json` et `package-lock.json` identiques à ceux de la PR Dependabot n°18 ; image `v1.64.0-noble` épinglée par l'empreinte relevée par le mainteneur dans le registre et sur la page du tag |
+| Prettier, ESLint, tsc, Vitest, build et poids | aucun problème ; 62 tests réussis ; tous les fichiers sous leur budget |
+| Playwright 1.64.0, Chromium desktop et mobile, build servi par wrangler | 73 scénarios réussis, 1 ignoré volontairement (navigation clavier sur mobile) |
+
+| Non exécuté | Raison | Quand |
+|---|---|---|
+| Firefox et WebKit, image Playwright 1.64.0 | non installés dans l'espace de développement | CI de la PR |
+| Nouvelles boucles d'installation et de déploiement sur GitHub Actions | demandent les secrets de l'environnement `production`, réservés à `main` | premiers runs de Deploy après la fusion ; un essai repris laisse une annotation « Install » ou « Deploy » |
+| Scan ZAP du site déployé avec la règle 10015 ignorée | planifié chaque lundi, ou lancé à la main | lancement manuel de Security après la fusion |
+
 ## Résultats du lot 2, partie 2 : vent et météo dans le pipeline
 
 Exécution du 11 octobre 2026 dans l'espace de développement, branche `lot-2/meteo-pipeline`, Python 3.13, sur les réponses réelles de la capture du 11 octobre à 17:21 UTC (run 38159286544, voir `pipeline/tests/fixtures/20261011T1721Z/README.md`).
