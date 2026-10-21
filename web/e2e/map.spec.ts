@@ -12,6 +12,19 @@ const foyer = (page: Page, id: number) =>
 const slider = (page: Page) => page.getByRole("slider", { name: "Instant affiché" });
 const timeText = (page: Page) => page.locator("#instant-texte");
 
+/**
+ * A point near the bottom left corner of the map, inside the window: on small
+ * screens the bottom of the map can lie below the window (iPhone 15 size in
+ * Chromium: map bottom at 710 px for a window of 683 px), where a click would
+ * land outside the page.
+ */
+async function emptyCorner(page: Page): Promise<{ x: number; y: number }> {
+  const box = await page.locator("#carte canvas").boundingBox();
+  const height = page.viewportSize()?.height;
+  if (!box || height === undefined) throw new Error("no canvas");
+  return { x: box.x + 30, y: Math.min(box.y + box.height, height) - 30 };
+}
+
 function fragment(page: Page): URLSearchParams {
   return new URLSearchParams(new URL(page.url()).hash.slice(1));
 }
@@ -286,7 +299,8 @@ test.describe("base map", () => {
     await expect.poll(() => fragment(page).get("carte") ?? "").toMatch(/^10\.00\//);
     const box = await page.locator("#carte canvas").boundingBox();
     if (!box) throw new Error("no canvas");
-    await page.mouse.click(box.x + 30, box.y + box.height - 30);
+    const corner = await emptyCorner(page);
+    await page.mouse.click(corner.x, corner.y);
     await expect(detail(page)).toContainText("Choisissez un foyer");
     await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
     await expect(detail(page).getByRole("heading", { name: "Foyer 2" })).toBeVisible();
@@ -316,7 +330,8 @@ test.describe("base map", () => {
     const box = await page.locator("#carte canvas").boundingBox();
     if (!box) throw new Error("no canvas");
     // A click away from any feature clears the selection.
-    await page.mouse.click(box.x + 30, box.y + box.height - 30);
+    const corner = await emptyCorner(page);
+    await page.mouse.click(corner.x, corner.y);
     await expect(detail(page)).toContainText("Choisissez un foyer");
     expect(fragment(page).get("foyer")).toBeNull();
     // A click on the foyer selects it again.

@@ -12,7 +12,7 @@ Le projet est construit par lots, chacun livré par une ou plusieurs pull reques
 |---|---|---|
 | 1a | Dépôt, intégration continue, contrôles de sécurité, capture de fixtures | fusionné (PR n°1) |
 | 1b | Carte, foyers FIRMS, périmètres EFFIS, frise temporelle, déploiement | terminé : PR n°3 et n°6 à n°10, puis la PR de clôture (comparaison, captures) |
-| 2 | Prévision : vent, météo AROME, propagation | en cours : capture des réponses d'Open-Meteo (PR n°14), fichiers de vent et de météo dans le pipeline |
+| 2 | Prévision : vent, météo AROME, propagation | en cours : capture des réponses d'Open-Meteo (PR n°14), fichiers de vent et de météo dans le pipeline (PR n°15), vent animé sur la carte |
 | 3 | Imagerie et temps : comparaison, imagerie, relief 3D, fumée | à venir |
 | 4 | Situation : foyers nommés par commune, score de menace, danger Météo-France, moyens aériens, enjeux exposés | à venir |
 | 5 | Fil d'information et archive | à venir |
@@ -25,10 +25,11 @@ Démo en ligne : <https://veille-feux-foret.hamonthibaud.workers.dev>, mise à j
 - **Détections** colorées selon leur âge à l'instant affiché : moins de 6 heures, 6 à 24 heures, 1 à 3 jours, 3 à 7 jours.
 - **Frise des 7 derniers jours**, heure par heure : la carte montre l'état à l'instant choisi (détections acquises jusque-là, foyers déjà apparus), avec lecture automatique.
 - **Surfaces brûlées** Copernicus EFFIS, datées et récentes, chargées seulement quand la couche est activée.
+- **Vent à 10 m** du modèle AROME HD de Météo-France (données Open-Meteo), à l'heure de la frise : traits animés qui suivent le vent, ou flèches fixes (bouton de pause, et au départ si le système demande de réduire les animations). Un clic sur la carte donne le vent, les rafales et la direction au point. Couche désactivée par défaut, chargée à la demande.
 - **Bilan de la saison** en France selon EFFIS, comparé à la moyenne depuis 2006.
 - **État des données** : heure de la dernière mise à jour, retard ou ancienneté signalés, état de chaque source, sources en panne nommées. Aucune donnée n'est inventée : une source absente est signalée comme telle.
 - **Deux fonds de carte** : Plan IGN gris par défaut, OpenStreetMap (OpenFreeMap, style Positron) au choix ; si un fond ne répond pas, l'autre est proposé.
-- **Partage** par l'adresse : position de la carte, fond, instant, foyer choisi et couche des surfaces brûlées.
+- **Partage** par l'adresse : position de la carte, fond, instant, foyer choisi, couches des surfaces brûlées et du vent.
 - Thème clair ou sombre, mise en page mobile, navigation au clavier, liste des foyers utilisable sans la carte (et sans WebGL).
 
 ### Aperçu
@@ -55,7 +56,7 @@ D'après le texte intégral de leurs README, relu le 10 octobre 2026. Deux cases
 | Bilan de la saison | oui, statistiques EFFIS (d'après son code) | non indiqué | non indiqué | oui, comparé à la moyenne depuis 2006 |
 | Incendies signalés, évacuations | situation officielle et évacuations saisies à la main à partir des communiqués | incendies signalés par l'association PSFDF, avec leur statut | communiqués des préfectures dans le fil d'information | non prévu à ce jour, à décider |
 | Frise temporelle | 7 jours passés et 12 heures de prévision, lecture animée | 10 jours, détections regroupées par passage satellite, lecture qui accélère dans les creux | semaine rejouée heure par heure, avec le vent et les rotations aériennes | 7 jours heure par heure, lecture animée, âge des détections à l'instant choisi ; prévision au lot 2, curseur continu au lot 3 |
-| Vent animé | oui, Open-Meteo, vent actuel ou prévu | oui, AROME HD (France), ARPEGE (péninsule) | oui | lot 2 |
+| Vent animé | oui, Open-Meteo, vent actuel ou prévu | oui, AROME HD (France), ARPEGE (péninsule) | oui | oui, AROME HD (Open-Meteo) à l'heure de la frise, flèches fixes au choix, vent au point cliqué |
 | Météo au point | non indiqué | prévisions horaires d'un point | AROME au foyer, vent mesuré à la station la plus proche, prévision d'ensemble, normales climatiques | lot 2 |
 | Prévision de propagation | panaches heure par heure, communes sous le vent, présentés comme estimations non officielles | non indiqué | trajectoire de propagation sur 6 heures | lot 2, méthode et limites documentées |
 | Fumée simulée | non indiqué | oui, présentée comme indicative | non indiqué | lot 3 |
@@ -69,7 +70,7 @@ D'après le texte intégral de leurs README, relu le 10 octobre 2026. Deux cases
 | Archive | non indiqué | oui, hors du site : page « Feux archivés » qui rejoue chaque feu suivi par PSFDF | oui, historique SQLite | lot 5, stockage à décider |
 | Alertes | non indiqué | notifications des nouveaux foyers dans un rayon de 5 à 50 km | alerte combinant vent et canicule | non prévu à ce jour |
 | Export d'image | non indiqué | PNG ou GIF de l'évolution | non indiqué | non prévu à ce jour |
-| Partage d'une vue par l'adresse | non indiqué | position et zoom | non indiqué | position, fond, instant, foyer et couche |
+| Partage d'une vue par l'adresse | non indiqué | position et zoom | non indiqué | position, fond, instant, foyer et couches |
 | État des données affiché | non indiqué | panneau « Mises à jour des données » | non indiqué | état de chaque source ; retard, ancienneté et reprise des données précédentes signalés |
 | Mise à jour des données | page actualisée toutes les 10 minutes, surfaces brûlées toutes les 6 heures | toutes les 30 minutes, température toutes les 6 heures | collecte toutes les 30 minutes | toutes les 30 minutes : du 7 au 10 octobre 2026, 148 runs pour 148 passages, 147 réussis |
 | Panne d'une source | non indiqué | publication annulée, carte en ligne inchangée | non indiqué | données précédentes reprises et signalées comme anciennes |
@@ -90,7 +91,7 @@ fixtures/   échantillons réels des sources, utilisés par les tests
 
 Le pipeline tourne dans GitHub Actions et produit des fichiers statiques que l'application lit : la commande `veille-feux-build` collecte les détections FIRMS des 7 derniers jours, les regroupe en foyers, lit les surfaces brûlées et le bilan de la saison publiés par EFFIS, lit le vent et la météo du modèle AROME HD de Météo-France sur Open-Meteo (une grille de vent sur la France et la météo de chaque foyer actif dans les 24 dernières heures, demandées de nouveau à chaque nouveau calcul du modèle, toutes les 3 heures), et écrit un fichier d'état de chaque source. Quand une source ne répond pas, la commande reprend les fichiers du déploiement précédent et les signale comme anciens : une panne ne vide jamais la carte et ne fait jamais passer une donnée ancienne pour récente. Le site est servi par Cloudflare Workers en fichiers statiques : les requêtes y sont gratuites et sans plafond, ce qui garde le site disponible lors des pics de consultation pendant les grands feux, et les en-têtes de sécurité sont définis dans `web/public/_headers`. En local, `npm run serve` sert le build avec le même moteur (wrangler) et les mêmes en-têtes. Aucun serveur n'est nécessaire tant que les lots 1 à 4 le permettent ; le besoin d'un back-end sera tranché avant le lot 5.
 
-Dans le navigateur, la page lit les fichiers de `data/` (état, détections, foyers, emprises, bilan ; surfaces brûlées à la demande), vérifie chaque entrée et affiche l'état, la liste des foyers et le bilan avant même que la carte soit chargée. La carte (MapLibre GL JS) est chargée ensuite ; ses tuiles viennent directement des serveurs de l'IGN ou d'OpenFreeMap. MapLibre est publié tel quel dans le build, une seule fois pour la page et son worker.
+Dans le navigateur, la page lit les fichiers de `data/` (état, détections, foyers, emprises, bilan ; surfaces brûlées et vent à la demande), vérifie chaque entrée et affiche l'état, la liste des foyers et le bilan avant même que la carte soit chargée. La carte (MapLibre GL JS) est chargée ensuite ; ses tuiles viennent directement des serveurs de l'IGN ou d'OpenFreeMap. MapLibre est publié tel quel dans le build, une seule fois pour la page et son worker. Le vent est dessiné par une couche WebGL 2 propre au site (couche personnalisée de MapLibre) : les particules et les flèches sont calculées en TypeScript, sans bibliothèque supplémentaire.
 
 ## Mise à jour et déploiement
 
@@ -135,7 +136,7 @@ npm run captures     # captures et animation du build (npm run serve doit tourne
 npm run captures:demo  # captures et animation du site en ligne
 ```
 
-Les tests end-to-end n'interrogent aucun serveur tiers : les fonds de carte sont remplacés par un style local minimal, et les fichiers de données sont ceux que le pipeline écrit à partir de la capture du 3 octobre 2026 (`web/e2e/fixtures/`, produits par `tools/build_web_fixtures.py`). Les captures d'écran, elles, chargent les vrais fonds de carte et demandent donc un accès réseau.
+Les tests end-to-end n'interrogent aucun serveur tiers : les fonds de carte sont remplacés par un style local minimal, et les fichiers de données sont ceux que le pipeline écrit à partir de la capture du 3 octobre 2026, et de celle du 12 octobre 2026 pour le vent (`web/e2e/fixtures/`, produits par `tools/build_web_fixtures.py`). Les captures d'écran, elles, chargent les vrais fonds de carte et demandent donc un accès réseau.
 
 Windows PowerShell (une commande par ligne, `&&` n'existe pas dans PowerShell 5.1) :
 
@@ -154,7 +155,7 @@ npx playwright install chromium firefox webkit
 npm run test:e2e
 ```
 
-Captures d'écran sous Windows : lancer `npm run serve` dans un premier terminal, puis `npm run captures` dans un second, depuis le dossier `web`. Pour le site en ligne, `npm run captures:demo` suffit, sans serveur local. Chacune écrit cinq captures et `interactions.gif` : `npm run captures` dans `docs/captures/build/` (données de test, pour comparer avant et après un changement), `npm run captures:demo` dans `docs/captures/en-ligne/` (images du README).
+Captures d'écran sous Windows : lancer `npm run serve` dans un premier terminal, puis `npm run captures` dans un second, depuis le dossier `web`. Pour le site en ligne, `npm run captures:demo` suffit, sans serveur local. Chacune écrit sept captures, dont deux du vent (animé, puis en flèches fixes), et `interactions.gif` : `npm run captures` dans `docs/captures/build/` (données de test, pour comparer avant et après un changement), `npm run captures:demo` dans `docs/captures/en-ligne/` (images du README).
 
 Si PowerShell refuse `Activate.ps1`, lancer d'abord `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass`, qui n'autorise les scripts que pour la fenêtre en cours.
 
@@ -182,6 +183,9 @@ Détail des éléments repris, sources de données et licences : [CREDITS.md](CR
 - Les foyers sont calculés à chaque mise à jour : en remontant la frise, la carte masque les foyers pas encore apparus, mais leur composition reste celle de la dernière mise à jour.
 - La carte demande WebGL 2 ; sans lui, l'état des données, la liste des foyers et leurs fiches restent disponibles.
 - Les fonds de carte n'ont pas de version sombre homogène : ils restent clairs en thème sombre.
+- Le vent est celui d'un modèle, pas une mesure : les heures passées sont des prévisions archivées du modèle AROME HD, les heures à venir des prévisions. La grille du fichier a un pas de 0,5° (de 35 à 56 km selon la direction et la latitude) : la valeur en un point est interpolée entre les quatre points voisins et lisse les effets locaux (vallées, brises, relief). Le vent mesuré par les stations Météo-France est prévu plus tard dans le lot 2.
+- La frise s'arrête encore à la dernière mise à jour : le vent prévu au-delà est dans le fichier mais pas encore affichable ; la frise étendue est la prochaine étape du lot 2.
+- Le point cliqué pour le vent n'est pas marqué sur la carte ; sa position est donnée dans le panneau de détail.
 
 ## Licence
 

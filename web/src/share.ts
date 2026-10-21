@@ -1,5 +1,5 @@
 // View shared through the address: map position, base map, instant of the
-// timeline, selected fire cluster and burned areas layer, in the URL fragment.
+// timeline, selected fire cluster, burned areas and wind layers, in the URL fragment.
 // The fragment is never sent to the server. Each value is checked against a
 // strict pattern and a range; anything else is ignored, never echoed.
 
@@ -17,6 +17,7 @@ export interface SharedState {
   instant?: number;
   foyer?: number;
   burned?: boolean;
+  wind?: boolean;
 }
 
 export const VIEW_LIMITS = {
@@ -67,6 +68,7 @@ export function parseFragment(fragment: string): SharedState {
   if (/^[1-9]\d{0,3}$/.test(foyer)) state.foyer = Number(foyer);
 
   if (params.get("brule") === "1") state.burned = true;
+  if (params.get("vent") === "1") state.wind = true;
   return state;
 }
 
@@ -80,6 +82,7 @@ export function formatFragment(state: SharedState): string {
   if (state.instant !== undefined) params.set("instant", String(state.instant));
   if (state.foyer !== undefined) params.set("foyer", String(state.foyer));
   if (state.burned) params.set("brule", "1");
+  if (state.wind) params.set("vent", "1");
   // "/" is kept readable in the position: URLSearchParams would encode it.
   const text = params.toString().replace(/%2F/g, "/");
   return text === "" ? "" : `#${text}`;

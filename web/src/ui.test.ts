@@ -5,6 +5,7 @@ import completEtat from "../e2e/fixtures/complet/etat.json?raw";
 import completFoyers from "../e2e/fixtures/complet/foyers.geojson?raw";
 import completSurfaces from "../e2e/fixtures/complet/surfaces-brulees.geojson?raw";
 import panneEtat from "../e2e/fixtures/firms-en-panne/etat.json?raw";
+import ventEtat from "../e2e/fixtures/vent/etat.json?raw";
 import {
   type Foyer,
   parseBurned,
@@ -13,7 +14,7 @@ import {
   parseStatus,
   parseSummary,
 } from "./data";
-import { AGE_COLOURS } from "./palette";
+import { AGE_COLOURS, WIND_COLOURS } from "./palette";
 import {
   markSelectedFoyer,
   renderAttribution,
@@ -22,6 +23,7 @@ import {
   renderLegend,
   renderStatus,
   renderSummary,
+  renderWindLegend,
 } from "./ui";
 
 const generated = new Date("2026-10-03T11:28:00Z");
@@ -83,6 +85,38 @@ describe("status", () => {
     );
     expect(box.querySelector("details")?.open).toBe(true);
     expect(box.querySelectorAll('li[data-ok="false"]')).toHaveLength(4);
+  });
+
+  it("names the weather sources when Open-Meteo fails", () => {
+    const value = parseStatus(JSON.parse(ventEtat));
+    const wind = value.sources.find((s) => s.id === "open_meteo_wind");
+    expect(wind?.ok).toBe(true);
+    // The status of an Open-Meteo outage, as the pipeline writes it.
+    const failed = value.sources.map((s) =>
+      s.id === "open_meteo_wind" ? { ...s, ok: false, error: "serveur injoignable" } : s,
+    );
+    renderStatus(box, {
+      status: { state: "ok", value: { ...value, sources: failed } },
+      rejected: 0,
+      now: new Date(value.generatedAt.getTime() + 5 * 60_000),
+      missingFiles: [],
+    });
+    expect(box.textContent).toContain("1 source en échec");
+    expect(box.textContent).toContain(
+      "Sources concernées : Vent et météo (Open-Meteo, modèle AROME de Météo-France).",
+    );
+    // A source of a group the page does not know is listed, never left unnamed.
+    const unknown = value.sources.map((s) =>
+      s.id === "open_meteo_wind" ? { ...s, id: "nouvelle_source", ok: false } : s,
+    );
+    renderStatus(box, {
+      status: { state: "ok", value: { ...value, sources: unknown } },
+      rejected: 0,
+      now: new Date(value.generatedAt.getTime() + 5 * 60_000),
+      missingFiles: [],
+    });
+    expect(box.textContent).toContain("1 source en échec. Les données affichées");
+    expect(box.textContent).not.toContain("Sources concernées : .");
   });
 
   it("says when nothing could be read, and counts rejected entries", () => {
@@ -196,6 +230,16 @@ describe("summary and captions", () => {
     ]);
     renderAttribution(box, "ign");
     expect(box.textContent).toContain("© IGN, Plan IGN");
+    expect(box.textContent).not.toContain("Vent");
+  });
+
+  it("credits the wind model and Open-Meteo when the wind is shown", () => {
+    renderAttribution(box, "ign", true);
+    expect(box.textContent).toContain(
+      "| Vent modèle AROME HD de Météo-France, données Open-Meteo.com |",
+    );
+    const link = [...box.querySelectorAll("a")].find((a) => a.textContent === "Open-Meteo.com");
+    expect(link?.getAttribute("href")).toBe("https://open-meteo.com/");
   });
 
   it("draws one legend entry per age class", () => {
@@ -214,5 +258,82 @@ describe("selection in the list", () => {
     expect(third?.getAttribute("aria-pressed")).toBe("true");
     markSelectedFoyer(box, null);
     expect(box.querySelectorAll('[aria-pressed="true"]')).toHaveLength(0);
+  });
+});
+
+describe("wind", () => {
+  const time = new Date("2026-10-12T01:00:00Z");
+  const run = new Date("2026-10-11T18:00:00Z");
+
+  it("gives the wind at a point, with its source and its limits", () => {
+    renderDetail(
+      box,
+      {
+        kind: "wind",
+        lat: 46.5,
+        lon: 2.5,
+        sample: { speed: 23.4, from: 248, gusts: 41.6 },
+        time,
+        run,
+        forecast: true,
+      },
+      later(0),
+    );
+    expect(box.querySelector("h3")?.textContent).toBe("Vent à ce point");
+    const text = box.textContent;
+    expect(text).toContain("Vent moyen à 10 m23 km/h");
+    expect(text).toContain("Directionde ouest-sud-ouest (248°)");
+    expect(text).toContain("Rafales42 km/h");
+    expect(text).toContain("calcul du 11 octobre 2026 à 20:00");
+    expect(text).toContain("Prévision du modèle.");
+    expect(text).toContain("grille de 0,5°");
+    expect(box.querySelector("a")?.getAttribute("href")).toBe("https://open-meteo.com/");
+  });
+
+  it("says when an hour is past, or when there are no gusts or no wind", () => {
+    const point = { kind: "wind" as const, lat: 46.5, lon: 2.5, time, run, forecast: false };
+    renderDetail(box, { ...point, sample: { speed: 5, from: 0, gusts: null } }, later(0));
+    expect(box.textContent).toContain("prévision archivée du modèle, pas une mesure");
+    expect(box.textContent).not.toContain("Rafales");
+    renderDetail(box, { ...point, sample: null }, later(0));
+    expect(box.textContent).toContain("en dehors de la zone couverte");
+    renderDetail(box, { ...point, sample: null, time: null }, later(0));
+    expect(box.textContent).toContain("Pas de donnée de vent pour l'instant affiché.");
+  });
+
+  it("draws the legend of the wind for each state", () => {
+    renderWindLegend(box, { state: "loading" }, WIND_COLOURS);
+    expect(box.dataset["state"]).toBe("loading");
+    expect(box.textContent).toContain("Chargement du vent");
+
+    renderWindLegend(box, { state: "unavailable", reason: "non publié" }, WIND_COLOURS);
+    expect(box.dataset["state"]).toBe("unavailable");
+    expect(box.textContent).toContain("Vent indisponible (non publié).");
+
+    renderWindLegend(box, { state: "ok", time, run, forecast: true, animated: true }, WIND_COLOURS);
+    expect(box.dataset["state"]).toBe("anime");
+    expect(box.querySelectorAll(".swatch-wind")).toHaveLength(5);
+    expect(box.textContent).toContain("moins de 10 km/h");
+    expect(box.textContent).toContain("30 à 50 km/h");
+    expect(box.textContent).toContain("Les traits suivent le vent");
+    expect(box.textContent).toContain(
+      "Prévision pour le 12 oct., 03:00, calcul du 11 oct., 20:00.",
+    );
+
+    renderWindLegend(
+      box,
+      { state: "ok", time, run: null, forecast: false, animated: false },
+      WIND_COLOURS,
+    );
+    expect(box.dataset["state"]).toBe("fixe");
+    expect(box.textContent).toContain("Les flèches indiquent où souffle le vent.");
+    expect(box.textContent).toContain("Prévision archivée pour le 12 oct., 03:00.");
+
+    renderWindLegend(
+      box,
+      { state: "ok", time: null, run, forecast: false, animated: false },
+      WIND_COLOURS,
+    );
+    expect(box.textContent).toContain("Pas de donnée de vent pour l'instant affiché.");
   });
 });

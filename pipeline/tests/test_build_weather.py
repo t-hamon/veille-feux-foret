@@ -1,4 +1,7 @@
-"""Build of the wind and weather files, on the Open-Meteo answers of 11 October 2026.
+"""Build of the wind and weather files, on real Open-Meteo answers.
+
+Most tests use the answers of 11 October 2026; the last one, the whole capture
+of 12 October 2026, the first with the weather at the captured clusters.
 
 Fire detections are written for the test: three at Aix-en-Provence, three in
 the Landes forest, the places of the weather sample of the capture. The other
@@ -16,8 +19,8 @@ from typing import Any
 
 import pytest
 
-from tests.helpers import fixture_bytes, make_opener
-from veille_feux import build, geo, sources
+from tests.helpers import FIXTURES, fixture_bytes, make_opener
+from veille_feux import build, capture, geo, sources
 from veille_feux.sources import (
     EFFIS_DATED_LAYER,
     EFFIS_NRT_LAYER,
@@ -410,3 +413,47 @@ def test_a_place_left_out_keeps_its_weather_of_an_older_run(
     ]
     assert fires["missing"] == []
     assert status["sources"]["open_meteo_fires"]["ok"] is True
+
+
+# ------------------------------------------------- capture of 12 October 2026
+
+
+def test_build_on_the_capture_of_12_october(tmp_path: Path) -> None:
+    """Every source, fire weather included, answered with the real capture.
+
+    The capture asked for the weather at the clusters of its own FIRMS files
+    (24-hour files, served here for the 7-day URLs as in the web test data):
+    the build asks for exactly that request and reads the real answer.
+    """
+    capture_dir = "20261012T0043Z"
+    now = dt.datetime(2026, 10, 12, 0, 43, 9, tzinfo=dt.UTC)
+    answers: dict[str, bytes | Exception] = {}
+    names = {
+        "effis_burned_dated": "effis_burned_dated.extract.geojson.gz",
+        "effis_burned_nrt": "effis_burned_nrt.extract.geojson.gz",
+        "effis_weekly_stats": "effis_weekly_stats.json.gz",
+        "open_meteo_meta": "open_meteo_meta.json.gz",
+        "open_meteo_wind_grid_1": "open_meteo_wind_grid_1.json.gz",
+        "open_meteo_wind_grid_2": "open_meteo_wind_grid_2.json.gz",
+    }
+    for source in capture.default_sources(now.date()):
+        if source.id.startswith("firms_"):
+            body = fixture_bytes(f"{capture_dir}/{source.id}.csv.gz")
+            answers[source.url.replace("_24h.csv", "_7d.csv")] = body
+        elif source.id in names:
+            answers[source.url] = fixture_bytes(f"{capture_dir}/{names[source.id]}")
+    (fire_source,) = capture.fire_weather_sources(FIXTURES / capture_dir, now)
+    answers[fire_source.url] = fixture_bytes(f"{capture_dir}/open_meteo_fire_weather_1.json.gz")
+
+    status = build.build(tmp_path, None, now, make_opener(answers))
+    assert all(entry["ok"] for entry in status["sources"].values())
+    wind = read(tmp_path / build.WIND)
+    assert (wind["run"], wind["hours"]) == ("2026-10-11T18:00:00Z", 214)
+    fires = read(tmp_path / build.FIRE_WEATHER)
+    assert fires["missing"] == []
+    assert [(f["id"], f["point"], f["elevation"]) for f in fires["fires"]] == [
+        (1, [49.4, 1.61], 154.0),
+        (2, [43.79, 7.37], 280.0),
+        (3, [50.4, 3.56], 20.0),
+    ]
+    assert all(f["cell"] == f["point"] and f["hours"] == 214 for f in fires["fires"])

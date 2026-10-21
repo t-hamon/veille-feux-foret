@@ -23,9 +23,44 @@ Ce fichier consigne les tests du projet et les résultats des dernières exécut
 | Concordance des données de test avec le pipeline | pytest (`tools/test_build_web_fixtures.py`) | CI `pipeline` |
 | Performance, accessibilité, bonnes pratiques | Lighthouse CI | CI `lighthouse` |
 | Déclencheur des mises à jour : appel à l'API de GitHub, secret absent, refus de GitHub, jeton absent des messages | Vitest | CI `web` |
+| Vent : lecture du fichier, particules, géométrie des traits et des flèches, légende et détail ; affichage, pause, mouvement réduit, frise, clic, fichier malformé ou absent | Vitest, Playwright, fichier de vent écrit par le pipeline | CI `web` et `e2e` |
 
 Les contrôles de sécurité (gitleaks, semgrep, bandit, zizmor, OWASP ZAP) sont décrits dans [SECURITY.md](SECURITY.md).
 
+## Résultats du lot 2, partie 3 : vent animé
+
+Exécution du 12 octobre 2026 dans l'espace de développement, branche `lot-2/vent-anime`, Node.js 24.21.0, Python 3.13, puis de nouveau le 21 octobre 2026 après le recalage de la branche sur `main` (PR n°22 fusionnée : vite 8.3.3, Playwright 1.64.0), avec les mêmes résultats : 98 tests Vitest, 93 scénarios Playwright Chromium réussis et 1 ignoré, 221 tests du pipeline avec et sans `GITHUB_ACTIONS=true`, 25 tests des outils, aucune vulnérabilité signalée par `npm audit`, aucune par `pip-audit` hors l'exception temporaire de certifi. Les données de test du site viennent de la capture réelle du 12 octobre à 00:43 UTC (run 38189075305, voir `pipeline/tests/fixtures/20261012T0043Z/README.md`), passée dans le vrai pipeline par `tools/build_web_fixtures.py` (scénario `vent`).
+
+| Test | Résultat |
+|---|---|
+| Prettier, ESLint, tsc | aucun problème |
+| Vitest | 98 tests réussis dans 9 fichiers |
+| Lecture du fichier de vent (`wind.test.ts`) | fichier du pipeline lu en entier (415 points, 214 heures, calcul du 11 octobre à 18:00 UTC) ; 13 formes refusées avec leur raison (date, calcul, première heure, nombre d'heures, pas, points, point hors zone, hors grille, en double, séries manquantes ou trop courtes) ; heure du fichier à un instant ; interpolation entre les 4 points voisins, refusée s'il en manque un ; direction calculée par composantes (pas de moyenne d'angles) ; 16 points cardinaux |
+| Particules et géométrie (`particles.test.ts`) | 17 tests : départ dans la vue et là où il y a du vent ; vent d'ouest qui pousse vers l'est et vent du sud vers le nord, à la vitesse à l'écran attendue ; traînée gardée dans l'ordre ; nouveau départ hors de la vue, en fin de vie ou sans vent ; 300 images sur le vrai fichier sans sortir de la vue ; projection Mercator ; segments, traînées qui s'effacent vers leur queue, flèches orientées vers où souffle le vent, couleurs prémultipliées par classe de vitesse |
+| Couche WebGL (`windlayer.test.ts`) | matrice translatée équivalente à la matrice d'origine sur les positions absolues ; flèches sur chaque point de grille de près, une sur deux à l'échelle de la France, seulement celles de la vue. Le dessin WebGL lui-même n'est pas testé automatiquement : il est vérifié à l'œil sur les captures ci-dessous |
+| Interface (`ui.test.ts`) | détail du vent en un point (vitesse, direction, rafales, calcul, prévision ou prévision archivée, limites de la grille, lien Open-Meteo) ; légende dans ses 4 états ; mention du vent sous la carte seulement quand la couche est affichée |
+| Couverture | `particles.ts`, `ui.ts` : 100 % des lignes ; `wind.ts` : 100 % des lignes ; `windlayer.ts` : 16 %, le reste demande un contexte WebGL et passe par les tests end-to-end |
+| Build et poids | `index` 13,4 ko gzip, `map` 5,8 ko gzip, CSS 2,2 ko gzip ; MapLibre inchangé ; tous sous leur budget |
+| Playwright Chromium desktop et mobile, build servi par wrangler | 93 scénarios réussis, 1 ignoré volontairement (navigation clavier sur mobile) ; dont 10 nouveaux par profil pour le vent : couche désactivée par défaut et `vent.json` non demandé ; affichage avec l'heure, le calcul, la source et l'adresse `vent=1` ; pause puis reprise ; départ en flèches fixes si le système demande de réduire les animations ; légende qui suit la frise (prévision, puis prévision archivée) ; bonne heure affichée quand `vent.json` arrive avant le fichier d'état ; vent au point cliqué ; aucune violation WCAG 2.2 AA relevée par axe ; fichier malformé refusé avec sa raison ; fichier absent signalé |
+| Coût du calcul des particules (Vitest, processeur Xeon 2,8 GHz de l'espace de développement) | par image : 0,5 ms de déplacement et 2,8 à 3,3 ms de géométrie pour 2 500 particules, le maximum, sur une carte d'au moins 1,6 million de pixels ; 0,1 à 0,3 ms et 0,5 à 0,8 ms pour les 518 particules d'une carte de bureau de 864 x 390 pixels ; la première version de la géométrie prenait 12 ms pour 2 500 particules et a été réécrite avant la livraison (chaque position projetée une fois, aucune allocation par segment, tampon GPU réutilisé) |
+| pytest du pipeline, avec et sans `GITHUB_ACTIONS=true` | 221 tests réussis dans les deux cas, couverture 98 % |
+| ruff, mypy strict, bandit | aucun problème |
+| Outils CI (`tools/`) : ruff, mypy strict, pytest | 23 tests réussis ; données de test du site régénérées identiques à celles du dépôt |
+| npm audit | aucune vulnérabilité |
+| Script de captures (`npm run captures`) avec les deux nouvelles vues du vent | exécuté une fois avec les fonds de carte remplacés par un fond uni, dans une copie du script : 7 captures écrites, dont le vent animé et les flèches fixes |
+
+Poste Windows du mainteneur, 21 octobre 2026, branche recalée sur `main` : Playwright 1.64.0 sur les 5 profils, 230 scénarios réussis, 3 ignorés volontairement et 2 en échec, tous deux sur WebKit mobile (« offers the other base map when one does not answer » et « selects a foyer by clicking it on the map ») : un clic près du coin bas gauche de la carte devait effacer la sélection, et le foyer restait choisi. Ces deux tests réussissaient sur le même poste avec `main`. Mesure dans l'espace de développement, au format iPhone 15 sous Chromium : la carte finit à 710 pixels pour une fenêtre de 683, le point cliqué n'était donc qu'à 3 pixels du bas de la fenêtre ; avec une fenêtre de 640 pixels, les deux tests échouent de la même façon sous Chromium. Correction : le point cliqué reste à 30 pixels au-dessus du bas de la fenêtre quand la carte dépasse ; les deux tests réussissent alors sous Chromium avec cette fenêtre de 640 pixels et sur les deux profils Chromium habituels. Vérification sur le poste Windows, le même soir, avec la correction : Playwright 1.64.0 sur les 5 profils, 232 scénarios réussis, dont les deux de WebKit mobile, et 3 ignorés volontairement (navigation clavier sur les profils mobiles et WebKit), en 6,6 minutes.
+
+Défaut trouvé en vérifiant à la main les instructions de test de la PR (données du 12 octobre copiées dans le build, `npm run serve`, adresse `#vent=1`) : quand `vent.json` arrivait avant le fichier d'état, la légende disait « Pas de donnée de vent pour l'instant affiché » jusqu'au démarrage de la carte, et pour toujours si la carte ne démarrait pas. Corrigé avant la livraison : l'heure du vent est recalculée dès que la frise connaît son instant. Le scénario end-to-end ajouté (fichier d'état retardé de 1 s, code de la carte de 5 s) échoue sans la correction et réussit avec, 6 fois sur 6 sur les deux profils Chromium ; la même vérification à la main affiche ensuite « Prévision pour le 12 oct., 03:00, calcul du 11 oct., 20:00 ».
+
+Captures avant et après, dans `docs/captures/lot-2/`, prises dans l'espace de développement par Playwright (Chromium) sur le build servi par wrangler : les fonds de carte n'y sont pas joignables et sont remplacés par un fond uni gris, comme dans les tests end-to-end. `avis-mobile-avant.png` (branche `main`) montre un défaut antérieur : sur mobile, la barre d'outils passe sur deux lignes et l'avis affiché au-dessus de la carte (par exemple « Surfaces brûlées indisponibles ») recouvrait les cases des couches ; `avis-mobile-apres.png` montre l'avis placé en haut de la carte.
+
+| Non exécuté | Raison | Quand |
+|---|---|---|
+| Firefox et WebKit | non installés dans l'espace de développement | CI de la PR (5 profils) ; captures avec les vrais fonds par `npm run captures` sur le poste Windows, au choix du mainteneur |
+| Lighthouse | non installé dans l'espace de développement ; la couche du vent est désactivée par défaut, la page mesurée ne la charge pas | CI de la PR |
+| Fluidité de l'animation sur un vrai téléphone | pas d'appareil dans l'espace de développement ; le Chromium sans interface y dessine en WebGL logiciel | à l'œil après le déploiement |
+| Contenu de `vent.json` sur le site en ligne (champ du calcul) | le site n'est joignable ni par le terminal ni par le navigateur de l'espace de développement à ce moment | après la fusion, avec la couche affichée sur le site |
 ## Maintenance d'octobre 2026 : runs du 12 au 21 octobre
 
 Relevé fait le 21 octobre 2026 par l'API de GitHub (runs, jobs et annotations), du 12 octobre à 02:07 UTC au 21 octobre à 14:37 UTC. Les journaux des jobs ne sont pas téléchargeables depuis l'espace de développement : ceux des trois échecs de Deploy ont été lus par le mainteneur dans l'interface de GitHub.
@@ -91,6 +126,19 @@ Premier passage de la CI de la PR n°15 (commit `517ce85`, 12 octobre 2026) : jo
 | Construction avec les vraies réponses d'Open-Meteo pour la météo des foyers | la capture du 11 octobre ne contenait pas encore ces requêtes ; les tests servent la réponse en deux points pour des foyers placés aux mêmes mailles (voir le README des fixtures) | prochaine capture, après la fusion |
 | Tests du site (Vitest, Playwright, Lighthouse) | aucun code du site ne change et ses données de test sont identiques | CI de la PR |
 | Construction réelle sur GitHub Actions | l'espace de développement ne joint pas les sources | premier run de Deploy après la fusion : annotation « Open-Meteo » et état des deux nouvelles sources à vérifier |
+
+### Après la fusion de la PR n°15
+
+Runs de Deploy sur `main` (commit `28e52c5`), annotations lues par l'API de GitHub le 12 octobre 2026 :
+
+| Run | Heure (UTC) | Résultat |
+|---|---|---|
+| 38188919564 (fusion) | 00:40 | 9 sources sur 9 ; 420 appels à Open-Meteo ; `vent.json` et `meteo-foyers.json` absents du déploiement précédent, donc demandés en entier, comme prévu |
+| 38190649587 | 01:07 | 9 sources sur 9 ; aucun appel annoncé : même calcul du modèle, fichiers repris |
+| 38192594535 | 01:37 | 9 sources sur 9 ; 419 appels : nouveau calcul du modèle |
+| 38193004851, 38194547535 | 01:43, 02:07 | 9 sources sur 9 ; aucun appel annoncé |
+
+La capture du 12 octobre à 00:43 UTC (run 38189075305) contient pour la première fois la requête de météo aux foyers ; elle sert aux données de test de la partie 3.
 
 ## Résultats du lot 2, partie 1 : capture des réponses d'Open-Meteo
 

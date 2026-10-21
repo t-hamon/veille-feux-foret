@@ -15,13 +15,15 @@ import {
   parseSummary,
 } from "./data";
 import * as format from "./format";
-import type { MapHandle } from "./map";
-import { AGE_COLOURS } from "./palette";
+import type { MapHandle, Picked } from "./map";
+import { AGE_COLOURS, WIND_COLOURS } from "./palette";
 import { type Basemap, type SharedState, type View, formatFragment, parseFragment } from "./share";
 import { LABELS, applyTheme, loadPreference, nextPreference, savePreference } from "./theme";
 import { type Range, instantAt, rangeOf, stepOf } from "./timeline";
 import {
   type Selection,
+  type WindLegendModel,
+  type WindPoint,
   markSelectedFoyer,
   renderAttribution,
   renderDetail,
@@ -29,7 +31,9 @@ import {
   renderLegend,
   renderStatus,
   renderSummary,
+  renderWindLegend,
 } from "./ui";
+import { type WindField, hourAt, hourTime, parseWind, sampleAt } from "./wind";
 
 function storage(): Storage | undefined {
   try {
@@ -99,7 +103,13 @@ interface PageState {
   range: Range | null;
   selection: Selection;
   burnedVisible: boolean;
+  windVisible: boolean;
+  windAnimated: boolean;
 }
+
+// Visitors who ask for reduced motion get still arrows; they can still start
+// the animation.
+const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 const state: PageState = {
   basemap: shared.basemap ?? loadBasemap() ?? "ign",
@@ -108,11 +118,15 @@ const state: PageState = {
   range: null,
   selection: null,
   burnedVisible: shared.burned ?? false,
+  windVisible: shared.wind ?? false,
+  windAnimated: !reducedMotion,
 };
 
 let map: MapHandle | null = null;
 let burned: LoadResult<BurnedArea[]> | null = null;
 let burnedRejected = 0;
+let wind: LoadResult<WindField> | null = null;
+let windRejected = 0;
 let refreshStatus = (): void => undefined;
 
 const panel = {
@@ -132,13 +146,14 @@ function updateAddress(): void {
   }
   if (state.selection?.kind === "foyer") next.foyer = state.selection.foyer.id;
   if (state.burnedVisible) next.burned = true;
+  if (state.windVisible) next.wind = true;
   const fragment = formatFragment(next);
   const url = `${window.location.pathname}${window.location.search}${fragment}`;
   window.history.replaceState(null, "", url);
 }
 
-// One message at a time over the map, about the base map or the burned areas.
-type NoticeTopic = "basemap" | "burned";
+// One message at a time over the map, about the base map, the burned areas or the wind.
+type NoticeTopic = "basemap" | "burned" | "wind";
 let noticeTopic: NoticeTopic | null = null;
 
 function showNotice(
@@ -202,7 +217,7 @@ async function start(): Promise<void> {
   refreshStatus = () => {
     renderStatus(panel.status, {
       status,
-      rejected: rejected + burnedRejected,
+      rejected: rejected + burnedRejected + windRejected,
       now: new Date(),
       missingFiles,
     });
@@ -261,6 +276,8 @@ function setupTimeline(status: Status, detections: LoadResult<Detection[]>): voi
   const initial = shared.instant !== undefined ? stepOf(range, shared.instant) : range.steps;
   input.value = String(initial);
   state.instant = instantAt(range, initial);
+  // The wind file can arrive before the status file: show its hour now.
+  refreshWind();
 
   function describe(): void {
     const instant = state.instant ?? range.end;
@@ -280,6 +297,7 @@ function setupTimeline(status: Status, detections: LoadResult<Detection[]>): voi
     cancelAnimationFrame(frame);
     frame = requestAnimationFrame(() => {
       map?.setInstant(state.instant ?? range.end);
+      refreshWind();
     });
     if (address) updateAddress();
   }
@@ -354,18 +372,110 @@ async function loadBurned(): Promise<void> {
   }
 }
 
+// ---------------------------------------------------------------- the wind
+
+function windHour(): { field: WindField; hour: number | null } | null {
+  if (wind?.state !== "ok") return null;
+  const instant = state.instant ?? state.range?.end ?? null;
+  return { field: wind.value, hour: instant === null ? null : hourAt(wind.value, instant) };
+}
+
+/** Hour of the wind shown, run of the model, and whether the hour is forecast. */
+function windTime(): { time: Date | null; run: Date | null; forecast: boolean } {
+  const current = windHour();
+  const time = current && current.hour !== null ? hourTime(current.field, current.hour) : null;
+  const run = current?.field.run ?? null;
+  return {
+    time: time === null ? null : new Date(time * 1000),
+    run,
+    forecast: time !== null && run !== null && time * 1000 > run.getTime(),
+  };
+}
+
+function windPoint(lat: number, lon: number): WindPoint {
+  const current = windHour();
+  return {
+    kind: "wind",
+    lat,
+    lon,
+    sample:
+      current && current.hour !== null ? sampleAt(current.field, current.hour, lat, lon) : null,
+    ...windTime(),
+  };
+}
+
+/** The wind at a point follows the instant of the timeline. */
+function refreshDetail(): void {
+  if (state.selection?.kind !== "wind") return;
+  state.selection = windPoint(state.selection.lat, state.selection.lon);
+  renderDetail(panel.detail, state.selection, new Date());
+}
+
+const windLegend = $("#legende-vent");
+const windButton = $("#vent-animation", HTMLButtonElement);
+
+function renderWindControls(): void {
+  windLegend.hidden = !state.windVisible;
+  windButton.hidden = !state.windVisible || wind?.state !== "ok";
+  windButton.textContent = state.windAnimated ? "Mettre le vent en pause" : "Animer le vent";
+  renderAttribution(controls.attribution, state.basemap, state.windVisible);
+  let model: WindLegendModel;
+  if (wind === null || (wind.state !== "ok" && state.windVisible && windLoading)) {
+    model = { state: "loading" };
+  } else if (wind.state !== "ok") {
+    model = {
+      state: "unavailable",
+      reason: wind.state === "missing" ? "non publié" : wind.message,
+    };
+  } else {
+    model = { state: "ok", ...windTime(), animated: state.windAnimated };
+  }
+  renderWindLegend(windLegend, model, WIND_COLOURS);
+}
+
+function refreshWind(): void {
+  const current = windHour();
+  map?.setWind(current?.field ?? null, current?.hour ?? null);
+  if (state.windVisible) renderWindControls();
+  refreshDetail();
+}
+
+let windLoading = false;
+async function loadWind(): Promise<void> {
+  if (wind?.state === "ok" || windLoading) return;
+  windLoading = true;
+  renderWindControls();
+  const result = await loadFile("wind", parseWind, fetcher);
+  windLoading = false;
+  if (result.state === "ok") {
+    wind = { state: "ok", value: result.value.field };
+    if (result.value.rejected > 0) {
+      windRejected = result.value.rejected;
+      refreshStatus();
+    }
+    hideNotice("wind");
+  } else {
+    wind = result;
+    const reason = result.state === "missing" ? "non publié" : result.message;
+    showNotice("wind", `Vent indisponible (${reason}).`);
+  }
+  refreshWind();
+  renderWindControls();
+}
+
 const controls = {
   basemap: $("#fond", HTMLSelectElement),
   attribution: $("#attribution"),
   foyers: $("#couche-foyers", HTMLInputElement),
   detections: $("#couche-detections", HTMLInputElement),
   burned: $("#couche-brule", HTMLInputElement),
+  wind: $("#couche-vent", HTMLInputElement),
 };
 
 function showBasemap(value: Basemap): void {
   state.basemap = value;
   controls.basemap.value = value;
-  renderAttribution(controls.attribution, value);
+  renderAttribution(controls.attribution, value, state.windVisible);
 }
 
 // The controls work from the first render, before the data and the map code
@@ -396,6 +506,25 @@ function setupControls(): void {
     if (state.burnedVisible) void loadBurned();
   });
   if (state.burnedVisible) void loadBurned();
+
+  controls.wind.checked = state.windVisible;
+  controls.wind.addEventListener("change", () => {
+    state.windVisible = controls.wind.checked;
+    map?.setWindVisible(state.windVisible);
+    if (!state.windVisible) hideNotice("wind");
+    renderWindControls();
+    updateAddress();
+    if (state.windVisible) void loadWind();
+  });
+  windButton.addEventListener("click", () => {
+    state.windAnimated = !state.windAnimated;
+    map?.setWindAnimated(state.windAnimated);
+    renderWindControls();
+  });
+  if (state.windVisible) {
+    renderWindControls();
+    void loadWind();
+  }
 }
 
 const BASEMAP_NAMES: Record<Basemap, string> = { ign: "Plan IGN", osm: "OpenStreetMap" };
@@ -418,8 +547,10 @@ async function startMap(start: MapStart): Promise<void> {
       view: state.view,
       instant: state.instant ?? Math.floor(Date.now() / 1000),
       data: { detections: start.detections, foyers: start.foyers, outlines: start.outlines },
-      onPick: (picked) => {
-        start.select(picked, false);
+      onPick: (picked: Picked | null) => {
+        if (picked?.kind !== "wind") start.select(picked, false);
+        // The wind at a point, once the wind file is there.
+        else start.select(wind?.state === "ok" ? windPoint(picked.lat, picked.lon) : null, false);
       },
       onMove: (view) => {
         state.view = view;
@@ -467,7 +598,10 @@ async function startMap(start: MapStart): Promise<void> {
   map.setVisible("detections", controls.detections.checked);
   map.setVisible("burned", state.burnedVisible);
   if (burned?.state === "ok") map.setBurned(burned.value);
+  map.setWindAnimated(state.windAnimated);
+  map.setWindVisible(state.windVisible);
   if (state.instant !== null) map.setInstant(state.instant);
+  refreshWind();
   const current = state.selection;
   if (current?.kind === "foyer") map.select(current.foyer, !state.view);
 }

@@ -17,6 +17,8 @@ import { loadMapLibre } from "./maplibre";
 import { AGE_COLOURS, DATED_COLOUR, FOYER_COLOUR, NRT_COLOUR, SELECTION_COLOUR } from "./palette";
 import type { Basemap, View } from "./share";
 import { type Expression, byAge, visibleFilter } from "./timeline";
+import type { WindField } from "./wind";
+import { WIND_LAYER_ID, createWindLayer } from "./windlayer";
 
 // Metropolitan France and Corsica, shown whole when no position is shared.
 // The northern edge leaves room for the foyer markers near Dunkirk and Lille.
@@ -36,7 +38,8 @@ export type LayerGroup = "detections" | "foyers" | "burned";
 export type Picked =
   | { kind: "foyer"; foyer: Foyer }
   | { kind: "detection"; detection: Detection }
-  | { kind: "burned"; area: BurnedArea };
+  | { kind: "burned"; area: BurnedArea }
+  | { kind: "wind"; lat: number; lon: number };
 
 export interface MapData {
   detections: Detection[];
@@ -65,6 +68,10 @@ export interface MapHandle {
   setBasemap(basemap: Basemap): void;
   setBurned(areas: BurnedArea[]): void;
   setVisible(group: LayerGroup, visible: boolean): void;
+  /** Wind of one hour of the wind file, or none. */
+  setWind(field: WindField | null, hour: number | null): void;
+  setWindVisible(visible: boolean): void;
+  setWindAnimated(animated: boolean): void;
   select(foyer: Foyer | null, fly: boolean): void;
   resize(): void;
 }
@@ -317,6 +324,7 @@ export async function createMap(options: MapOptions): Promise<MapHandle> {
   let burned: BurnedArea[] = [];
   const visible: Record<LayerGroup, boolean> = { detections: true, foyers: true, burned: false };
   const foyersById = new Map(data.foyers.map((f) => [f.id, f]));
+  let windVisible = false;
 
   const start = options.view;
   let map: MapLibreMap;
@@ -350,6 +358,7 @@ export async function createMap(options: MapOptions): Promise<MapHandle> {
   map.keyboard.disableRotation();
   map.addControl(new lib.NavigationControl({ showCompass: false }), "top-right");
   map.addControl(new lib.ScaleControl({ unit: "metric" }), "bottom-right");
+  const wind = createWindLayer(map);
 
   const detectionsData = detectionsCollection(data.detections);
   const foyersData = foyersCollection(data.foyers);
@@ -361,7 +370,11 @@ export async function createMap(options: MapOptions): Promise<MapHandle> {
     map.addSource(SOURCES.outlines, { type: "geojson", data: outlinesData });
     map.addSource(SOURCES.detections, { type: "geojson", data: detectionsData });
     map.addSource(SOURCES.foyers, { type: "geojson", data: foyersData });
-    for (const layer of layers(instant, font, selected)) map.addLayer(layer);
+    for (const layer of layers(instant, font, selected)) {
+      // The wind goes above the burned areas, under the foyers and detections.
+      if (layer.id === "vff-emprises-fill") map.addLayer(wind.layer);
+      map.addLayer(layer);
+    }
     for (const group of Object.keys(visible) as LayerGroup[]) applyVisibility(group);
   }
 
@@ -430,7 +443,13 @@ export async function createMap(options: MapOptions): Promise<MapHandle> {
       [event.point.x + 6, event.point.y + 6],
     ];
     const present = clickable.filter((id) => map.getLayer(id));
-    options.onPick(pick(map.queryRenderedFeatures(box, { layers: present })));
+    const picked = pick(map.queryRenderedFeatures(box, { layers: present }));
+    // Elsewhere on the map, with the wind shown: the wind at that point.
+    if (picked === null && windVisible && map.getLayer(WIND_LAYER_ID)) {
+      options.onPick({ kind: "wind", lat: event.lngLat.lat, lon: event.lngLat.lng });
+      return;
+    }
+    options.onPick(picked);
   });
 
   for (const layer of clickable) {
@@ -483,6 +502,16 @@ export async function createMap(options: MapOptions): Promise<MapHandle> {
     setVisible(group, value) {
       visible[group] = value;
       applyVisibility(group);
+    },
+    setWind(field, hour) {
+      wind.setWind(field, hour);
+    },
+    setWindVisible(value) {
+      windVisible = value;
+      wind.setVisible(value);
+    },
+    setWindAnimated(value) {
+      wind.setAnimated(value);
     },
     select(foyer, fly) {
       selected = foyer?.id ?? null;

@@ -6,7 +6,8 @@ import { BASEMAPS } from "./basemaps";
 import type { BurnedArea, Detection, Foyer, LoadResult, Status, Summary } from "./data";
 import * as format from "./format";
 import type { Basemap } from "./share";
-import { ageMinutes, freshness, groupOf, health } from "./status";
+import { type SourceGroup, ageMinutes, freshness, groupOf, health } from "./status";
+import { SPEED_CLASSES, type WindSample, compassPoint } from "./wind";
 
 type Child = Node | string | null | undefined | false;
 
@@ -41,9 +42,10 @@ export interface StatusModel {
   missingFiles: string[];
 }
 
-const SOURCE_NAMES: Record<string, string> = {
+const SOURCE_NAMES: Record<SourceGroup, string> = {
   firms: "Foyers (NASA FIRMS)",
   effis: "Surfaces brûlées et bilan (EFFIS)",
+  meteo: "Vent et météo (Open-Meteo, modèle AROME de Météo-France)",
 };
 
 export function renderStatus(container: HTMLElement, model: StatusModel): void {
@@ -153,7 +155,8 @@ export function renderStatus(container: HTMLElement, model: StatusModel): void {
         "p",
         { class: "alert" },
         el("strong", {}, `${plural(failed.length, "source", "sources")} en échec. `),
-        `Sources concernées : ${names}. Les données affichées pour ces sources sont les dernières reçues, ou absentes.`,
+        names === "" ? "" : `Sources concernées : ${names}. `,
+        "Les données affichées pour ces sources sont les dernières reçues, ou absentes.",
       ),
     );
   }
@@ -254,11 +257,75 @@ function row(term: string, value: string): Node[] {
   return [el("dt", {}, term), el("dd", {}, value)];
 }
 
+export interface WindPoint {
+  kind: "wind";
+  lat: number;
+  lon: number;
+  /** Wind at the point for the hour shown, or null where there is none. */
+  sample: WindSample | null;
+  /** Hour of the wind shown, or null when the file has none for the instant. */
+  time: Date | null;
+  /** Run of the model, when known. */
+  run: Date | null;
+  /** True when the hour is after the run of the model: a forecast. */
+  forecast: boolean;
+}
+
 export type Selection =
   | { kind: "foyer"; foyer: Foyer }
   | { kind: "detection"; detection: Detection }
   | { kind: "burned"; area: BurnedArea }
+  | WindPoint
   | null;
+
+const OPEN_METEO = "https://open-meteo.com/";
+const MODEL_NAME = "modèle AROME HD de Météo-France";
+
+function kmh(value: number): string {
+  return `${format.number(Math.round(value))} km/h`;
+}
+
+function renderWind(container: HTMLElement, w: WindPoint): void {
+  container.append(el("h3", {}, "Vent à ce point"));
+  if (w.sample === null || w.time === null) {
+    container.append(
+      el(
+        "p",
+        {},
+        w.time === null
+          ? "Pas de donnée de vent pour l'instant affiché."
+          : "Pas de donnée de vent à ce point : il est en dehors de la zone couverte par le modèle sur cette carte.",
+      ),
+    );
+    return;
+  }
+  const s = w.sample;
+  container.append(
+    el(
+      "dl",
+      {},
+      ...row("Position", format.coordinates(w.lat, w.lon)),
+      ...row("Heure", format.dateTimeLong(w.time)),
+      ...row("Vent moyen à 10 m", kmh(s.speed)),
+      ...row("Direction", `de ${compassPoint(s.from)} (${String(s.from)}°)`),
+      ...(s.gusts === null ? [] : row("Rafales", kmh(s.gusts))),
+      ...row(
+        "Source",
+        w.run ? `${MODEL_NAME}, calcul du ${format.dateTimeLong(w.run)}` : MODEL_NAME,
+      ),
+    ),
+    el(
+      "p",
+      { class: "muted" },
+      w.forecast
+        ? "Prévision du modèle. "
+        : "Heure passée : prévision archivée du modèle, pas une mesure. ",
+      "Valeur interpolée sur une grille de 0,5° (de 35 à 56 km selon la direction et la latitude) : un ordre de grandeur pour la zone, pas la valeur exacte à ce point. Données ",
+      link("Open-Meteo.com", OPEN_METEO),
+      ".",
+    ),
+  );
+}
 
 export function renderDetail(container: HTMLElement, selection: Selection, now: Date): void {
   container.replaceChildren();
@@ -270,6 +337,10 @@ export function renderDetail(container: HTMLElement, selection: Selection, now: 
         "Choisissez un foyer dans la liste ou sur la carte pour afficher son détail.",
       ),
     );
+    return;
+  }
+  if (selection.kind === "wind") {
+    renderWind(container, selection);
     return;
   }
   if (selection.kind === "foyer") {
@@ -394,7 +465,7 @@ export function renderSummary(container: HTMLElement, summary: LoadResult<Summar
 
 // ---------------------------------------------------------- map captions
 
-export function renderAttribution(container: HTMLElement, basemap: Basemap): void {
+export function renderAttribution(container: HTMLElement, basemap: Basemap, wind = false): void {
   container.replaceChildren();
   const parts: Node[] = [];
   for (const item of BASEMAPS[basemap].attribution) {
@@ -405,6 +476,10 @@ export function renderAttribution(container: HTMLElement, basemap: Basemap): voi
   parts.push(link("NASA FIRMS", "https://firms.modaps.eosdis.nasa.gov/"));
   parts.push(document.createTextNode(" | Surfaces brûlées "));
   parts.push(link("EFFIS", "https://forest-fire.emergency.copernicus.eu/"));
+  if (wind) {
+    parts.push(document.createTextNode(` | Vent ${MODEL_NAME}, données `));
+    parts.push(link("Open-Meteo.com", OPEN_METEO));
+  }
   parts.push(document.createTextNode(" | "));
   parts.push(link("MapLibre", "https://maplibre.org/"));
   container.append(...parts);
@@ -451,5 +526,74 @@ export function renderLegend(container: HTMLElement, colours: readonly string[])
     el("p", { class: "legend-caption" }, "Âge des détections à l'instant affiché"),
     ages,
     shapes,
+  );
+}
+
+export type WindLegendModel =
+  | { state: "loading" }
+  | { state: "unavailable"; reason: string }
+  | {
+      state: "ok";
+      /** Hour of the wind shown, or null when the file has none for the instant. */
+      time: Date | null;
+      run: Date | null;
+      forecast: boolean;
+      animated: boolean;
+    };
+
+const SPEED_LABELS = [
+  `moins de ${String(SPEED_CLASSES[0])} km/h`,
+  `${String(SPEED_CLASSES[0])} à ${String(SPEED_CLASSES[1])} km/h`,
+  `${String(SPEED_CLASSES[1])} à ${String(SPEED_CLASSES[2])} km/h`,
+  `${String(SPEED_CLASSES[2])} à ${String(SPEED_CLASSES[3])} km/h`,
+  `${String(SPEED_CLASSES[3])} km/h et plus`,
+];
+
+/** Legend of the wind layer: speed classes, hour shown, source. */
+export function renderWindLegend(
+  container: HTMLElement,
+  model: WindLegendModel,
+  colours: readonly string[],
+): void {
+  container.replaceChildren(el("h3", { class: "legend-title" }, "Vent à 10 m"));
+  container.dataset["state"] =
+    model.state === "ok" ? (model.animated ? "anime" : "fixe") : model.state;
+  if (model.state === "loading") {
+    container.append(el("p", { class: "legend-caption" }, "Chargement du vent…"));
+    return;
+  }
+  if (model.state === "unavailable") {
+    container.append(el("p", { class: "legend-caption" }, `Vent indisponible (${model.reason}).`));
+    return;
+  }
+  const speeds = el("ul", { class: "legend-list" });
+  colours.forEach((colour, index) => {
+    const swatch = el("span", { class: "swatch swatch-wind", "aria-hidden": "true" });
+    swatch.style.background = colour;
+    speeds.append(el("li", {}, swatch, SPEED_LABELS[index] ?? ""));
+  });
+  const when =
+    model.time === null
+      ? "Pas de donnée de vent pour l'instant affiché."
+      : `${model.forecast ? "Prévision" : "Prévision archivée"} pour le ${format.dateTime(model.time)}${
+          model.run ? `, calcul du ${format.dateTime(model.run)}` : ""
+        }.`;
+  container.append(
+    el(
+      "p",
+      { class: "legend-caption" },
+      model.animated
+        ? "Les traits suivent le vent ; leur vitesse à l'écran croît avec celle du vent."
+        : "Les flèches indiquent où souffle le vent.",
+    ),
+    speeds,
+    el("p", { class: "legend-caption" }, when),
+    el(
+      "p",
+      { class: "legend-caption" },
+      `${MODEL_NAME[0]?.toUpperCase() ?? ""}${MODEL_NAME.slice(1)}, données `,
+      link("Open-Meteo.com", OPEN_METEO),
+      ". Un clic sur la carte donne le vent au point.",
+    ),
   );
 }

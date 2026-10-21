@@ -73,6 +73,11 @@
               <a href="https://forest-fire.emergency.copernicus.eu/">Copernicus EFFIS</a>
               (Commission européenne, Centre commun de recherche), licence CC BY 4.0.
             </li>
+            <li>
+              Vent : modèle AROME HD de Météo-France, données
+              <a href="https://open-meteo.com/">Open-Meteo.com</a> (licence CC BY 4.0). Les heures
+              passées sont des prévisions archivées du modèle, pas des mesures.
+            </li>
             <li>Fond de carte : voir les mentions affichées sous la carte.</li>
           </ul>
         </section>
@@ -93,12 +98,18 @@
             <label><input type="checkbox" id="couche-foyers" checked /> Foyers</label>
             <label><input type="checkbox" id="couche-detections" checked /> Détections</label>
             <label><input type="checkbox" id="couche-brule" /> Surfaces brûlées</label>
+            <label><input type="checkbox" id="couche-vent" /> Vent</label>
           </fieldset>
+          <button type="button" id="vent-animation" class="button" hidden>
+            Mettre le vent en pause
+          </button>
         </div>
-        <div id="carte" class="map">
-          <p class="map-message" id="carte-message">Chargement de la carte…</p>
+        <div class="map-frame">
+          <div id="carte" class="map">
+            <p class="map-message" id="carte-message">Chargement de la carte…</p>
+          </div>
+          <div id="notice" class="map-notice" hidden></div>
         </div>
-        <div id="notice" class="map-notice" hidden></div>
         <div class="timeline" id="frise" hidden>
           <button type="button" id="lecture" class="button">Lire</button>
           <label class="timeline-slider">
@@ -109,6 +120,7 @@
           <button type="button" id="maintenant" class="button">Dernière mise à jour</button>
         </div>
         <div class="legend" id="legende" aria-label="Légende"></div>
+        <div class="legend" id="legende-vent" aria-label="Légende du vent" hidden></div>
         <p class="attribution" id="attribution"></p>
       </section>
     </div>
