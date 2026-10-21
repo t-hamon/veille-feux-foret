@@ -22,26 +22,39 @@ def headers(values: dict[str, str]) -> Message:
     return message
 
 
-def production_headers() -> dict[str, str]:
-    """The headers of web/public/_headers for every path, as Cloudflare sends them."""
+# Sent by Cloudflare for the page, which web/public/_headers leaves to its
+# default (read on the deployed site on 21 October 2026).
+PAGE_CACHE = "public, max-age=0, must-revalidate"
+
+
+def production_headers(rule: str = "/*") -> dict[str, str]:
+    """The headers of one rule of web/public/_headers, as Cloudflare sends them."""
     values: dict[str, str] = {}
-    in_all = False
+    in_rule = False
     for line in HEADERS_FILE.read_text(encoding="utf-8").splitlines():
         if line.startswith("/"):
-            in_all = line.strip() == "/*"
-        elif in_all and line.startswith("  ") and ":" in line:
+            in_rule = line.strip() == rule
+        elif in_rule and line.startswith("  ") and ":" in line:
             name, value = line.strip().split(":", 1)
             values[name.lower()] = value.strip()
     return values
+
+
+def page_headers() -> dict[str, str]:
+    return {**production_headers(), "cache-control": PAGE_CACHE}
+
+
+def data_headers() -> dict[str, str]:
+    return {**production_headers(), **production_headers("/data/*")}
 
 
 def site(
     generation: str = "2026-10-05T10:00:00Z", overrides: dict[str, cd.Answer] | None = None
 ) -> cd.Getter:
     answers = {
-        f"{SITE}/": cd.Answer(200, headers(production_headers()), b"<html>"),
+        f"{SITE}/": cd.Answer(200, headers(page_headers()), b"<html>"),
         f"{SITE}/data/etat.json": cd.Answer(
-            200, headers({}), json.dumps({"generated_at": generation}).encode()
+            200, headers(data_headers()), json.dumps({"generated_at": generation}).encode()
         ),
         f"{SITE}/nexiste-pas": cd.Answer(404, headers({}), b""),
         f"{SITE}/_headers": cd.Answer(404, headers({}), b""),
@@ -78,8 +91,34 @@ def test_old_data_still_served_fails_after_retries() -> None:
     assert len(pauses) == cd.ATTEMPTS - 1
 
 
+def test_the_data_files_are_revalidated_as_the_headers_file_says() -> None:
+    assert "no-cache" in production_headers("/data/*")["cache-control"]
+
+
+def test_a_page_or_data_kept_in_cache_fails() -> None:
+    cached_page = {**page_headers(), "cache-control": "public, max-age=3600"}
+    cached_data = {**data_headers(), "cache-control": "public, max-age=600"}
+    body = json.dumps({"generated_at": "2026-10-05T10:00:00Z"}).encode()
+    get = site(
+        overrides={
+            f"{SITE}/": cd.Answer(200, headers(cached_page), b"<html>"),
+            f"{SITE}/data/etat.json": cd.Answer(200, headers(cached_data), body),
+        }
+    )
+    problems = cd.check(get, SITE, "2026-10-05T10:00:00Z", no_sleep)
+    assert problems == [
+        "/data/etat.json: cache-control 'public, max-age=600' does not contain 'no-cache'",
+        "/: cache-control 'public, max-age=3600' does not contain 'max-age=0'",
+        "/: cache-control 'public, max-age=3600' does not contain 'must-revalidate'",
+    ]
+    no_header = {k: v for k, v in page_headers().items() if k != "cache-control"}
+    get = site(overrides={f"{SITE}/": cd.Answer(200, headers(no_header), b"<html>")})
+    problems = cd.check(get, SITE, "2026-10-05T10:00:00Z", no_sleep)
+    assert "/: cache-control 'missing' does not contain 'max-age=0'" in problems
+
+
 def test_missing_or_weakened_headers_fail() -> None:
-    weak = production_headers()
+    weak = page_headers()
     del weak["x-frame-options"]
     weak["content-security-policy"] = "default-src *"
     get = site(overrides={f"{SITE}/": cd.Answer(200, headers(weak), b"")})
