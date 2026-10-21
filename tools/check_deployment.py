@@ -8,6 +8,10 @@ project's own site only. It checks that:
   Cloudflare location, and the very first deployment of the workers.dev
   address can take longer;
 - the page answers, with every security header of web/public/_headers;
+- the page and the data are revalidated at each visit: the page with
+  max-age=0 and must-revalidate (sent by Cloudflare), etat.json with no-cache
+  (web/public/_headers). The OWASP ZAP rule 10015 is ignored on this ground
+  (.zap/rules.tsv): this check keeps the ground true;
 - unknown paths and the _headers file answer 404.
 
 Each problem is printed as a GitHub Actions error annotation and the script
@@ -56,6 +60,12 @@ REQUIRED_HEADERS = {
     "cross-origin-embedder-policy": "require-corp",
     "cross-origin-resource-policy": "same-origin",
     "strict-transport-security": "max-age=",
+}
+
+# Path: directives its Cache-Control header must contain.
+REQUIRED_CACHE = {
+    "/": ("max-age=0", "must-revalidate"),
+    "/data/etat.json": ("no-cache",),
 }
 
 
@@ -134,6 +144,15 @@ def header_problems(answer: Answer) -> Iterator[str]:
             yield f"page: header {name} does not contain {expected!r}"
 
 
+def cache_problems(path: str, answer: Answer) -> Iterator[str]:
+    if answer.status != 200:
+        return
+    value = (answer.headers.get("cache-control") or "").lower()
+    for directive in REQUIRED_CACHE[path]:
+        if directive not in value:
+            yield f"{path}: cache-control {value or 'missing'!r} does not contain {directive!r}"
+
+
 def served_generation(answer: Answer) -> str | None:
     if answer.status != 200:
         return None
@@ -170,7 +189,10 @@ def check(
                 f"data: etat.json generated at {served} is served, {expected_generation} was built"
             )
 
-    problems.extend(header_problems(get(f"{site}/")))
+    problems.extend(cache_problems("/data/etat.json", answer))
+    page = get(f"{site}/")
+    problems.extend(header_problems(page))
+    problems.extend(cache_problems("/", page))
     for path in ("/nexiste-pas", "/_headers"):
         answer = get(f"{site}{path}")
         if answer.status != 404:
