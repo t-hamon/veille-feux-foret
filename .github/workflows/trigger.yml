@@ -44,9 +44,35 @@ jobs:
         with:
           node-version: "24"
       - name: Install wrangler without running any install script
-        run: npm ci --ignore-scripts
+        # Same check as in deploy.yml: npm carries on when an optional dependency
+        # fails to install, and the install script of workerd is not run here,
+        # so the binary of workerd is checked and the install tried again.
+        run: |
+          for attempt in 1 2 3; do
+            if npm ci --ignore-scripts && [ -f node_modules/@cloudflare/workerd-linux-64/package.json ]; then
+              exit 0
+            fi
+            echo "::warning title=Install::attempt $attempt of 3 failed or left out @cloudflare/workerd-linux-64"
+            sleep 10
+          done
+          echo "::error title=Install::wrangler could not be installed in 3 attempts"
+          exit 1
       - name: Deploy the Worker and its schedule
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: npx wrangler deploy --config trigger/wrangler.jsonc
+        # Same retries as in deploy.yml, where the Cloudflare API failed for a
+        # while on 12 and 17 October 2026, then worked again with the same
+        # token: deploying the same Worker again gives the same Worker.
+        run: |
+          for attempt in 1 2 3; do
+            if npx wrangler deploy --config trigger/wrangler.jsonc; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "::warning title=Deploy::attempt $attempt of 3 failed, next attempt in 30 s"
+              sleep 30
+            fi
+          done
+          echo "::error title=Deploy::deployment failed 3 times"
+          exit 1
