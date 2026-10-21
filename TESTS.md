@@ -56,6 +56,10 @@ Corrections, branche `lot-2/maintenance-ci`, exécution du 21 octobre 2026 dans 
 | Prettier, ESLint, tsc, Vitest, build et poids | aucun problème ; 62 tests réussis ; tous les fichiers sous leur budget |
 | Playwright 1.64.0, Chromium desktop et mobile, build servi par wrangler | 73 scénarios réussis, 1 ignoré volontairement (navigation clavier sur mobile) |
 
+Poste Windows du mainteneur, 21 octobre 2026, branche `lot-2/maintenance-ci` : 62 tests unitaires réussis ; Playwright 1.64.0 sur les 5 profils : 182 scénarios réussis, 3 ignorés volontairement (navigation clavier sur les profils mobiles et WebKit), en 5 minutes. Une première exécution avait échoué sur les 185 scénarios : les navigateurs de Playwright 1.64.0 n'étaient pas encore installés (`npx playwright install chromium firefox webkit`).
+
+Première CI de la PR n°22 (commit `490f276`, 21 octobre 2026) : 7 vérifications réussies, dont les tests end-to-end sur les 3 navigateurs dans l'image Playwright 1.64.0, le scan ZAP du site déployé ignoré (il ne tourne que chaque lundi ou à la main), et un échec : pip-audit relève PYSEC-2026-4320 sur certifi 2026.7.22, installé dans le job de tests comme dépendance de pip-audit. La correction, certifi 2026.10.19, n'a pas encore les 7 jours exigés par le projet : l'avis est ignoré jusqu'au 27 octobre 2026 à 02:24 UTC (voir SECURITY.md). Étape d'audit essayée dans l'espace de développement : réussie aujourd'hui avec l'avis ignoré ; avec une horloge simulée, encore réussie le 27 octobre à 02:24 UTC et en échec, avec un message qui demande de retirer l'exception, dès 02:25.
+
 | Non exécuté | Raison | Quand |
 |---|---|---|
 | Firefox et WebKit, image Playwright 1.64.0 | non installés dans l'espace de développement | CI de la PR |

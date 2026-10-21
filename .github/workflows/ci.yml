@@ -49,7 +49,21 @@ jobs:
       - name: Bandit
         run: bandit -c pyproject.toml -r src
       - name: Dependency audit
-        run: pip-audit --skip-editable
+        # Temporary exception, until 27 October 2026 at 02:24 UTC: certifi
+        # 2026.7.22 still trusts intermediate certificates of eMudhra whose
+        # private keys were compromised (PYSEC-2026-4320, GHSA-6q48-6c7w-9gw2).
+        # certifi is only installed here, as a dependency of pip-audit itself
+        # (through requests): the pipeline has no dependency and uses the
+        # certificates of the system. The fix, certifi 2026.10.19, was uploaded
+        # on 20 October at 02:24 UTC and pip only accepts releases older than
+        # seven days (PIP_UPLOADED_PRIOR_TO). From that date on, the step fails
+        # until the exception is removed (see SECURITY.md).
+        run: |
+          if [[ "$(date -u +%Y-%m-%dT%H:%M)" > "2026-10-27T02:24" ]]; then
+            echo "::error title=Dependency audit::certifi 2026.10.19 is now accepted: remove the PYSEC-2026-4320 exception from ci.yml and SECURITY.md"
+            exit 1
+          fi
+          pip-audit --skip-editable --ignore-vuln PYSEC-2026-4320
       - name: CI tools (lint, types, tests)
         working-directory: tools
         run: |
