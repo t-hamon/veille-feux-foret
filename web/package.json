@@ -44,6 +44,6 @@
     }
   },
   "dependencies": {
-    "maplibre-gl": "^6.11.2"
+    "maplibre-gl": "^6.14.0"
   }
 }
