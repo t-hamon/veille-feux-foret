@@ -298,9 +298,26 @@ class Context:
         _log_detail(source_id, _short_error(exc))
         self.record(source_id, False, error=_public_error(exc))
 
-    def carry(self, source_id: str) -> None:
-        """Keep the previous state of a source that was not fetched this run."""
+    def carry(self, source_id: str, kept: tuple[str | None, int] | None = None) -> None:
+        """Keep the previous state of a source that was not fetched this run.
+
+        `kept` gives the fetch time and the count of the data file kept from
+        the previous build. When the previous status file could not be read,
+        the state is taken from that file instead: its data is still current,
+        and the source must not show as down for no reason (23 October 2026).
+        """
         previous = self.previous_source(source_id)
+        if not previous and kept is not None:
+            fetched_at, count = kept
+            self.status[source_id] = {
+                "label": SOURCE_LABELS[source_id],
+                "ok": True,
+                "checked_at": fetched_at,
+                "updated_at": fetched_at,
+                "count": count,
+                "error": None,
+            }
+            return
         self.status[source_id] = {
             "label": SOURCE_LABELS[source_id],
             "ok": previous.get("ok", False),
@@ -566,13 +583,19 @@ def _keeps_previous_wind(
     return fetched is not None and fetched <= ctx.now and ctx.now - fetched < RUN_INTERVAL
 
 
+def _past(ctx: Context, value: Any) -> dt.datetime | None:
+    """A time read from a previous file, if valid and not in the future."""
+    moment = meteo.parse_iso(value)
+    return moment if moment is not None and moment <= ctx.now else None
+
+
 def build_wind(ctx: Context, run: dt.datetime | None) -> None:
     source_id = "open_meteo_wind"
     grid = geo.france_grid(FRANCE_BBOX, WIND_GRID_STEP)
-    if _keeps_previous_wind(ctx, ctx.previous_document(WIND), run, len(grid)) and (
-        ctx.copy_previous(WIND)
-    ):
-        ctx.carry(source_id)
+    previous = ctx.previous_document(WIND)
+    if _keeps_previous_wind(ctx, previous, run, len(grid)) and ctx.copy_previous(WIND):
+        fetched = _past(ctx, previous.get("fetched_at")) if previous is not None else None
+        ctx.carry(source_id, kept=(_iso(fetched) if fetched else None, len(grid)))
         return
     series: list[meteo.PointSeries] = []
     dropped = 0
@@ -615,8 +638,13 @@ def build_fire_weather(
     source_id = "open_meteo_fires"
     if clusters is None:
         # No fire data this time: the previous clusters and their weather are kept.
-        ctx.copy_previous(FIRE_WEATHER)
-        ctx.carry(source_id)
+        if ctx.copy_previous(FIRE_WEATHER):
+            kept = meteo.previous_fire_entries(ctx.previous_document(FIRE_WEATHER))
+            times = [_past(ctx, e.get("fetched_at")) for e in kept.values()]
+            latest = max((t for t in times if t is not None), default=None)
+            ctx.carry(source_id, kept=(_iso(latest) if latest else None, len(kept)))
+        else:
+            ctx.carry(source_id)
         return
     fires = meteo.recent_fires(clusters, ctx.now)
     previous = meteo.previous_fire_entries(ctx.previous_document(FIRE_WEATHER))
