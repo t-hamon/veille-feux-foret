@@ -27,6 +27,43 @@ Ce fichier consigne les tests du projet et les résultats des dernières exécut
 
 Les contrôles de sécurité (gitleaks, semgrep, bandit, zizmor, OWASP ZAP) sont décrits dans [SECURITY.md](SECURITY.md).
 
+## Maintenance de novembre 2026 : runs du 22 octobre au 6 novembre, dépendances
+
+Relevé fait le 6 novembre 2026 par l'API de GitHub (runs, jobs et annotations), du 22 octobre à 14:07 UTC au 6 novembre à 15:37 UTC.
+
+| Constat | Détail |
+|---|---|
+| Deploy | 792 runs (722 lancés par le déclencheur Cloudflare, 70 par la planification GitHub), 791 réussis. Un seul trou de plus de 55 minutes : 1 h 30 le 1er novembre, de 07:37 à 09:07 UTC (deux lancements manquants, cause non visible depuis GitHub) |
+| Échec du 30 octobre, 13:37 UTC | téléchargement de l'artefact du site entre les deux jobs refusé par GitHub après 5 essais (`download-artifact`) ; le run suivant a réussi |
+| Nouvelles reprises du déploiement | utilisées deux fois (24 octobre à 02:07 UTC, 29 octobre à 09:07 UTC) : premier essai en échec, deuxième réussi |
+| Sources | 777 runs avec 9 sources sur 9 ; 15 runs sans NASA FIRMS (les quatre flux ensemble, `Network is unreachable`), jamais deux de suite ; 4 runs avec un délai dépassé ou une erreur ponctuelle (Open-Meteo, EFFIS) |
+| Appels à Open-Meteo | 59 549 sur la période, au plus 423 par construction, soit environ 3 950 par jour |
+| État du vent faux le 23 octobre, 16:07 UTC | `etat.json` illisible sur le site déployé, `vent.json` lisible : le fichier du vent, du même calcul du modèle, a été gardé à raison, mais sa source a été marquée en panne, sans raison, pendant une construction |
+| CI de la PR Dependabot n°25 (29 octobre) | étape `pip-audit` en échec comme prévu à l'échéance de l'exception de certifi (27 octobre) ; étape `npm audit` en échec aussi : 8 avis sur undici (miniflare, jsdom) et 1 sur minimatch (eslint, typescript-eslint) |
+| Dependabot npm | la mise à jour du 22 octobre a échoué et aucune n'a tourné depuis (actions et pip ont tourné les 29 octobre et 5 novembre) ; le journal de Dependabot n'est pas lisible par l'API |
+| MapLibre 6.14.0 (PR Dependabot n°24) | non retenu : depuis la 6.13, le worker ne partage plus de code avec la bibliothèque, et MapLibre passe de 297 à 423 ko gzip au premier chargement (script de budget du projet), soit +125 ko, pour des correctifs qui touchent surtout le relief, le globe et la caméra, que le site n'utilise pas ; aucune faille de sécurité annoncée (notes de version lues au tag v6.14.0 le 22 octobre 2026). À réexaminer à chaque nouvelle version |
+
+Corrections, branche `lot-2/dependances`, exécution du 6 novembre 2026 dans l'espace de développement :
+
+| Test | Résultat |
+|---|---|
+| `npm audit` | aucune vulnérabilité, avec wrangler 4.156.0 (undici 7.30.1), jsdom 30.1.3 (undici 8.12.3) et `minimatch` forcé en 11.0.3 |
+| `pip-audit` sans exception, environnement neuf installé avec la règle des 7 jours | aucun avis (certifi 2026.10.23) |
+| Surcharge de `minimatch` | eslint vérifie les mêmes 35 fichiers qu'avec minimatch 10.2.6 et signale toujours une variable inutilisée dans un fichier d'essai |
+| Retrait de la surcharge de `sharp` | `package-lock.json` identique |
+| Actions GitHub | commits épinglés de la PR Dependabot n°25 vérifiés contre les tags de leurs versions ; zizmor : aucun problème |
+| État des sources gardées sans `etat.json` précédent | 3 nouveaux tests ; les deux cas corrigés (vent, météo des foyers) échouent sans la correction |
+| pytest du pipeline, avec et sans `GITHUB_ACTIONS=true` | 224 tests réussis, couverture 98 % |
+| ruff, mypy strict, bandit, outils CI | aucun problème |
+| Prettier, ESLint, tsc, Vitest, build et poids | aucun problème ; 98 tests réussis ; MapLibre 297,4 ko gzip |
+| `wrangler deploy --dry-run` (déclencheur) | réussi avec wrangler 4.156.0 |
+| Playwright Chromium desktop et mobile | 93 scénarios réussis, 1 ignoré volontairement |
+
+| Non exécuté | Raison | Quand |
+|---|---|---|
+| Firefox et WebKit | non installés dans l'espace de développement | poste Windows et CI de la PR |
+| Déploiement réel avec wrangler 4.156.0 | demande les secrets de `production`, réservés à `main` | premier run de Deploy après la fusion |
+
 ## Résultats du lot 2, partie 3 : vent animé
 
 Exécution du 12 octobre 2026 dans l'espace de développement, branche `lot-2/vent-anime`, Node.js 24.21.0, Python 3.13, puis de nouveau le 21 octobre 2026 après le recalage de la branche sur `main` (PR n°22 fusionnée : vite 8.3.3, Playwright 1.64.0), avec les mêmes résultats : 98 tests Vitest, 93 scénarios Playwright Chromium réussis et 1 ignoré, 221 tests du pipeline avec et sans `GITHUB_ACTIONS=true`, 25 tests des outils, aucune vulnérabilité signalée par `npm audit`, aucune par `pip-audit` hors l'exception temporaire de certifi. Les données de test du site viennent de la capture réelle du 12 octobre à 00:43 UTC (run 38189075305, voir `pipeline/tests/fixtures/20261012T0043Z/README.md`), passée dans le vrai pipeline par `tools/build_web_fixtures.py` (scénario `vent`).
