@@ -27,6 +27,31 @@ Ce fichier consigne les tests du projet et les résultats des dernières exécut
 
 Les contrôles de sécurité (gitleaks, semgrep, bandit, zizmor, OWASP ZAP) sont décrits dans [SECURITY.md](SECURITY.md).
 
+## Mises à jour du 7 novembre 2026
+
+Après la fusion de la PR n°26 et la fermeture des PR Dependabot n°17, 19, 21, 24 et 25, Dependabot a ouvert cinq PR npm (n°27 à 31) puis s'est arrêté sur « Dependabot cannot open any more pull requests ». Ce message, déjà présent dans les mises à jour npm depuis le 22 octobre, veut dire que la limite de 5 PR npm ouvertes à la fois était atteinte : ce n'était pas une panne.
+
+| Changement | Vérification |
+|---|---|
+| prettier 3.9.10 (publié le 10 octobre), vitest et @vitest/coverage-v8 5.0.5 (15 octobre), @axe-core/playwright 4.14.0 (15 octobre) | entrées changées de `package-lock.json` identiques à celles des PR Dependabot n°27, 28, 30 et 31 ; les PR n°28 et 30 changent chacune les mêmes sept entrées |
+| @playwright/test 1.64.1 (14 octobre) et image `v1.64.1-noble` de la CI | entrées identiques à la PR n°29 ; empreinte de l'image relevée par le mainteneur le 7 novembre dans le registre et sur la page du tag, identique dans les deux. La page date le tag du 11/01/2026, probablement le 1er novembre : l'image a été reconstruite après la sortie de la version, et le changement n'est appliqué qu'à partir du 9 novembre pour respecter la règle des 7 jours |
+| Regroupement Dependabot npm | versions mineures et correctives dans une seule PR par semaine ; @playwright/test (image de la CI à changer en même temps), maplibre-gl (taille pesée à chaque version) et les versions majeures restent à part |
+
+Exécution du 7 novembre 2026 dans l'espace de développement :
+
+| Test | Résultat |
+|---|---|
+| Prettier 3.9.10 | tous les fichiers gardent leur format |
+| ESLint, tsc, Vitest avec couverture, build et poids | aucun problème ; 98 tests réussis, seuils de couverture respectés ; MapLibre 297,4 ko gzip |
+| `npm audit` | aucune vulnérabilité |
+| zizmor | aucun problème |
+| Playwright 1.64.1 Chromium desktop et mobile, avec axe-core 4.14.0 | 93 scénarios réussis, 1 ignoré volontairement ; aucune violation WCAG 2.2 AA relevée |
+
+| Non exécuté | Raison | Quand |
+|---|---|---|
+| Firefox et WebKit avec Playwright 1.64.1 | non installés dans l'espace de développement | poste Windows (après `npx playwright install`) et CI de la PR, à partir du 9 novembre |
+| Premier regroupement Dependabot | Dependabot ne tourne qu'une fois par semaine | prochaine mise à jour npm après la fusion |
+
 ## Maintenance de novembre 2026 : runs du 22 octobre au 6 novembre, dépendances
 
 Relevé fait le 6 novembre 2026 par l'API de GitHub (runs, jobs et annotations), du 22 octobre à 14:07 UTC au 6 novembre à 15:37 UTC.
