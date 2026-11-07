@@ -186,6 +186,27 @@ def test_same_run_nothing_is_asked_again(tmp_path: Path) -> None:
     assert fires["fires"][0]["fetched_at"] == "2026-10-11T17:21:23Z"
 
 
+def test_kept_wind_stays_up_when_the_previous_status_is_missing(tmp_path: Path) -> None:
+    # 23 October 2026: etat.json could not be read from the deployed site while
+    # vent.json could; the wind file was kept, but its source showed as down.
+    first = tmp_path / "first"
+    run(first, bodies())
+    (first / build.STATUS).unlink()
+    later = NOW + dt.timedelta(minutes=30)
+    status, calls = run_recorded(tmp_path / "second", bodies(), first, later)
+    assert [c for c in calls if c in WIND_URLS] == []
+    assert (tmp_path / "second" / build.WIND).read_bytes() == (first / build.WIND).read_bytes()
+    wind = status["sources"]["open_meteo_wind"]
+    assert wind == {
+        "label": build.SOURCE_LABELS["open_meteo_wind"],
+        "ok": True,
+        "checked_at": "2026-10-11T17:21:23Z",
+        "updated_at": "2026-10-11T17:21:23Z",
+        "count": 415,
+        "error": None,
+    }
+
+
 def test_a_new_fire_alone_is_asked_for(tmp_path: Path) -> None:
     first = tmp_path / "first"
     answers = bodies()
@@ -318,6 +339,35 @@ def test_no_fire_data_keeps_the_previous_weather(tmp_path: Path) -> None:
     second = tmp_path / "second"
     assert (second / build.FIRE_WEATHER).read_bytes() == (first / build.FIRE_WEATHER).read_bytes()
     assert (second / build.FOYERS).read_bytes() == (tmp_path / "keep.geojson").read_bytes()
+
+
+def test_kept_fire_weather_stays_up_when_the_previous_status_is_missing(
+    tmp_path: Path,
+) -> None:
+    first = tmp_path / "first"
+    run(first, bodies())
+    (first / build.STATUS).unlink()
+    answers = bodies()
+    for feed in FIRMS_FEEDS:
+        answers[feed.url("7d")] = OSError("down")
+    status = run(tmp_path / "second", answers, first)
+    fires = status["sources"]["open_meteo_fires"]
+    assert (fires["ok"], fires["count"], fires["error"]) == (True, 2, None)
+    assert fires["updated_at"] == fires["checked_at"] == "2026-10-11T17:21:23Z"
+
+
+def test_without_a_kept_file_a_missing_status_still_shows_the_source_down(
+    tmp_path: Path,
+) -> None:
+    first = tmp_path / "first"
+    run(first, bodies())
+    (first / build.STATUS).unlink()
+    (first / build.FIRE_WEATHER).unlink()
+    answers = bodies()
+    for feed in FIRMS_FEEDS:
+        answers[feed.url("7d")] = OSError("down")
+    status = run(tmp_path / "second", answers, first)
+    assert status["sources"]["open_meteo_fires"]["ok"] is False
 
 
 def test_no_recent_fire_means_no_request(tmp_path: Path) -> None:
