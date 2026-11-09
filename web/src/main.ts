@@ -19,7 +19,7 @@ import type { MapHandle, Picked } from "./map";
 import { AGE_COLOURS, WIND_COLOURS } from "./palette";
 import { type Basemap, type SharedState, type View, formatFragment, parseFragment } from "./share";
 import { LABELS, applyTheme, loadPreference, nextPreference, savePreference } from "./theme";
-import { type Range, instantAt, rangeOf, stepOf } from "./timeline";
+import { type Range, fireInstant, instantAt, isForecast, rangeOf, stepOf } from "./timeline";
 import {
   type Selection,
   type WindLegendModel,
@@ -128,6 +128,10 @@ let burnedRejected = 0;
 let wind: LoadResult<WindField> | null = null;
 let windRejected = 0;
 let refreshStatus = (): void => undefined;
+// Set up once the status file is there.
+let updateRange = (): void => undefined;
+// Instant of the forecast given in the address, until the wind file is there.
+let pendingInstant: number | null = null;
 
 const panel = {
   status: $("#etat"),
@@ -141,9 +145,9 @@ const mapMessage = $("#carte-message");
 function updateAddress(): void {
   const next: SharedState = { basemap: state.basemap };
   if (state.view) next.view = state.view;
-  if (state.range && state.instant !== null && state.instant < state.range.end) {
-    next.instant = state.instant;
-  }
+  // An instant of the forecast asked in the address is kept while the wind loads.
+  const instant = pendingInstant ?? state.instant;
+  if (state.range && instant !== null && instant !== state.range.now) next.instant = instant;
   if (state.selection?.kind === "foyer") next.foyer = state.selection.foyer.id;
   if (state.burnedVisible) next.burned = true;
   if (state.windVisible) next.wind = true;
@@ -262,54 +266,91 @@ async function start(): Promise<void> {
 
 // ----------------------------------------------------------- the timeline
 
+/** Last hour of the wind forecast, when the wind is shown. */
+function forecastEnd(): number | null {
+  if (!state.windVisible || wind?.state !== "ok") return null;
+  return hourTime(wind.value, wind.value.hours - 1);
+}
+
 function setupTimeline(status: Status, detections: LoadResult<Detection[]>): void {
-  const range = rangeOf(status.generatedAt, status.windowHours);
-  state.range = range;
   const frise = $("#frise");
   const input = $("#instant", HTMLInputElement);
   const output = $("#instant-texte", HTMLOutputElement);
   const play = $("#lecture", HTMLButtonElement);
   const latest = $("#maintenant", HTMLButtonElement);
   const times = detections.state === "ok" ? detections.value.map((d) => d.t) : [];
-
-  input.max = String(range.steps);
-  const initial = shared.instant !== undefined ? stepOf(range, shared.instant) : range.steps;
-  input.value = String(initial);
-  state.instant = instantAt(range, initial);
-  // The wind file can arrive before the status file: show its hour now.
-  refreshWind();
+  let range = rangeOf(status.generatedAt, status.windowHours, forecastEnd());
+  state.range = range;
+  let timer = 0;
 
   function describe(): void {
-    const instant = state.instant ?? range.end;
-    const shown = times.filter((t) => t <= instant).length;
+    const instant = state.instant ?? range.now;
     const when = format.dateTime(new Date(instant * 1000));
-    const label = instant >= range.end ? `${when}, dernière mise à jour` : when;
-    output.textContent = `État au ${label} : ${format.number(shown)} détection${shown > 1 ? "s" : ""}`;
-    input.setAttribute("aria-valuetext", `État au ${label}`);
-    latest.disabled = instant >= range.end;
+    const forecast = isForecast(range, instant);
+    let label: string;
+    if (forecast) {
+      const minutes = Math.round((instant * 1000 - Date.now()) / 60_000);
+      label = `Prévision, ${when} (${format.until(minutes)})`;
+      output.textContent = label;
+    } else {
+      const shown = times.filter((t) => t <= instant).length;
+      label = `État au ${instant === range.now ? `${when}, dernière mise à jour` : when}`;
+      output.textContent = `${label} : ${format.number(shown)} détection${shown > 1 ? "s" : ""}`;
+    }
+    input.setAttribute("aria-valuetext", label);
+    if (forecast) input.setAttribute("aria-describedby", "prevision");
+    else input.removeAttribute("aria-describedby");
+    frise.dataset["mode"] = forecast ? "prevision" : "passe";
+    latest.disabled = instant === range.now;
+    if (!timer) labelPlay();
+  }
+
+  /** From the last update on, the reading goes through the forecast. */
+  function labelPlay(): void {
+    const step = Number(input.value);
+    play.setAttribute(
+      "aria-label",
+      step >= range.nowStep && step < range.steps
+        ? "Lire la prévision du vent heure par heure"
+        : "Lire les 7 derniers jours heure par heure",
+    );
+  }
+
+  /** Marks where the forecast starts on the slider. */
+  function drawRange(): void {
+    input.max = String(range.steps);
+    const hasForecast = range.steps > range.nowStep;
+    frise.dataset["prevision"] = hasForecast ? "oui" : "non";
+    frise.style.setProperty("--maintenant", String(range.nowStep / range.steps));
   }
 
   let frame = 0;
+  function showInstant(): void {
+    cancelAnimationFrame(frame);
+    frame = requestAnimationFrame(() => {
+      map?.setInstant(fireInstant(range, state.instant ?? range.now));
+      refreshWind();
+    });
+  }
+
   function apply(step: number, address: boolean): void {
+    pendingInstant = null;
     state.instant = instantAt(range, step);
     input.value = String(step);
     describe();
-    cancelAnimationFrame(frame);
-    frame = requestAnimationFrame(() => {
-      map?.setInstant(state.instant ?? range.end);
-      refreshWind();
-    });
+    showInstant();
     if (address) updateAddress();
   }
 
-  let timer = 0;
   function stop(): void {
     window.clearInterval(timer);
     timer = 0;
     play.textContent = "Lire";
-    play.setAttribute("aria-label", "Lire les 7 derniers jours heure par heure");
+    labelPlay();
   }
 
+  // The reading stops at the last update; pressed again there, it goes on
+  // through the forecast.
   play.addEventListener("click", () => {
     if (timer) {
       stop();
@@ -318,13 +359,14 @@ function setupTimeline(status: Status, detections: LoadResult<Detection[]>): voi
     }
     let step = Number(input.value);
     if (step >= range.steps) step = 0;
+    const last = step < range.nowStep ? range.nowStep : range.steps;
     apply(step, false);
     play.textContent = "Pause";
     play.setAttribute("aria-label", "Mettre la lecture en pause");
     timer = window.setInterval(() => {
       step += 1;
       apply(step, false);
-      if (step >= range.steps) {
+      if (step >= last) {
         stop();
         updateAddress();
       }
@@ -337,11 +379,39 @@ function setupTimeline(status: Status, detections: LoadResult<Detection[]>): voi
   });
   latest.addEventListener("click", () => {
     if (timer) stop();
-    apply(range.steps, true);
+    apply(range.nowStep, true);
   });
 
+  // Called when the wind arrives, is shown or is hidden: the forecast part
+  // comes and goes with it.
+  updateRange = () => {
+    const before = state.instant;
+    range = rangeOf(status.generatedAt, status.windowHours, forecastEnd());
+    state.range = range;
+    if (timer) stop();
+    drawRange();
+    let wanted = state.instant ?? range.now;
+    if (pendingInstant !== null) {
+      wanted = pendingInstant;
+      // Still waiting for the wind file: the forecast part is not known yet.
+      if (!(state.windVisible && (wind === null || windLoading))) pendingInstant = null;
+    }
+    // An hour of the forecast that is no longer shown goes back to the last update.
+    const step = wanted > range.end ? range.nowStep : stepOf(range, wanted);
+    state.instant = instantAt(range, step);
+    input.value = String(step);
+    describe();
+    if (before !== null && state.instant !== before) {
+      showInstant();
+      updateAddress();
+    }
+  };
+
+  if (shared.instant !== undefined) pendingInstant = shared.instant;
+  updateRange();
+  // The wind file can arrive before the status file: show its hour now.
+  refreshWind();
   stop();
-  describe();
   frise.hidden = false;
 }
 
@@ -376,7 +446,7 @@ async function loadBurned(): Promise<void> {
 
 function windHour(): { field: WindField; hour: number | null } | null {
   if (wind?.state !== "ok") return null;
-  const instant = state.instant ?? state.range?.end ?? null;
+  const instant = state.instant ?? state.range?.now ?? null;
   return { field: wind.value, hour: instant === null ? null : hourAt(wind.value, instant) };
 }
 
@@ -459,6 +529,7 @@ async function loadWind(): Promise<void> {
     const reason = result.state === "missing" ? "non publié" : result.message;
     showNotice("wind", `Vent indisponible (${reason}).`);
   }
+  updateRange();
   refreshWind();
   renderWindControls();
 }
@@ -512,6 +583,7 @@ function setupControls(): void {
     state.windVisible = controls.wind.checked;
     map?.setWindVisible(state.windVisible);
     if (!state.windVisible) hideNotice("wind");
+    updateRange();
     renderWindControls();
     updateAddress();
     if (state.windVisible) void loadWind();
@@ -545,7 +617,10 @@ async function startMap(start: MapStart): Promise<void> {
       container: $("#carte"),
       basemap: state.basemap,
       view: state.view,
-      instant: state.instant ?? Math.floor(Date.now() / 1000),
+      instant:
+        state.range && state.instant !== null
+          ? fireInstant(state.range, state.instant)
+          : Math.floor(Date.now() / 1000),
       data: { detections: start.detections, foyers: start.foyers, outlines: start.outlines },
       onPick: (picked: Picked | null) => {
         if (picked?.kind !== "wind") start.select(picked, false);
@@ -600,7 +675,9 @@ async function startMap(start: MapStart): Promise<void> {
   if (burned?.state === "ok") map.setBurned(burned.value);
   map.setWindAnimated(state.windAnimated);
   map.setWindVisible(state.windVisible);
-  if (state.instant !== null) map.setInstant(state.instant);
+  if (state.range && state.instant !== null) {
+    map.setInstant(fireInstant(state.range, state.instant));
+  }
   refreshWind();
   const current = state.selection;
   if (current?.kind === "foyer") map.select(current.foyer, !state.view);

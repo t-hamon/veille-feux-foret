@@ -12,6 +12,7 @@
   --danger-text: #a50e0e;
   --selection: #0b57d0;
   --map-bg: #e8e6e3;
+  --forecast: #6b3fa0;
   color-scheme: light;
 }
 
@@ -29,6 +30,7 @@
   --danger-text: #ff8a80;
   --selection: #8ab4ff;
   --map-bg: #2a2724;
+  --forecast: #c3a6f0;
   color-scheme: dark;
 }
 
@@ -44,6 +46,7 @@
     --warning-bg: #2a1d14;
     --warning-border: #e07a3f;
     --focus: #8ab4ff;
+    --forecast: #c3a6f0;
     color-scheme: dark;
   }
 }
@@ -445,7 +448,8 @@ select,
   grid-template-columns: auto 1fr auto;
   grid-template-areas:
     "play slider latest"
-    "text text text";
+    "text text text"
+    "note note note";
   align-items: center;
   gap: 0.25rem 0.75rem;
   padding: 0.5rem 1rem;
@@ -461,6 +465,7 @@ select,
 .timeline-slider {
   grid-area: slider;
   display: flex;
+  position: relative;
 }
 
 .timeline-slider input {
@@ -471,6 +476,56 @@ select,
 
 #maintenant {
   grid-area: latest;
+}
+
+/* The forecast part of the slider: a band from the last update (the
+   "maintenant" mark) to the end. The thumb centre runs from 8 px to 8 px
+   before the end of the input. */
+.timeline-forecast {
+  display: none;
+  position: absolute;
+  bottom: 4px;
+  left: calc(8px + (100% - 16px) * var(--maintenant, 1));
+  right: 8px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--forecast);
+  pointer-events: none;
+}
+
+.timeline-forecast::before {
+  content: "";
+  position: absolute;
+  left: -1px;
+  bottom: 0;
+  width: 2px;
+  height: 14px;
+  background: var(--text);
+}
+
+.timeline[data-prevision="oui"] .timeline-forecast,
+.timeline[data-prevision="oui"] .timeline-note {
+  display: block;
+}
+
+.timeline[data-mode="prevision"] .timeline-note {
+  visibility: visible;
+}
+
+.timeline[data-mode="prevision"] .timeline-slider input {
+  accent-color: var(--forecast);
+}
+
+/* Its place is kept while the forecast part exists, so that the slider does
+   not move when the instant crosses the last update. */
+.timeline-note {
+  display: none;
+  visibility: hidden;
+  grid-area: note;
+  margin: 0;
+  padding: 0.25rem 0.5rem;
+  border-left: 4px solid var(--forecast);
+  font-size: 0.9375rem;
 }
 
 #instant-texte {
@@ -611,7 +666,8 @@ select,
     grid-template-areas:
       "play latest"
       "slider slider"
-      "text text";
+      "text text"
+      "note note";
   }
 
   #maintenant {
