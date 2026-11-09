@@ -27,6 +27,31 @@ Ce fichier consigne les tests du projet et les résultats des dernières exécut
 
 Les contrôles de sécurité (gitleaks, semgrep, bandit, zizmor, OWASP ZAP) sont décrits dans [SECURITY.md](SECURITY.md).
 
+## Résultats du lot 2, partie 4 : frise étendue
+
+Exécution du 10 novembre 2026 dans l'espace de développement, branche `lot-2/frise-etendue` partie de `main` (102fb89), Node.js 22.22.0. Le navigateur de Playwright 1.64.1 ne peut pas y être téléchargé (hôte `cdn.playwright.dev` refusé par le proxy de l'espace) : les scénarios Chromium tournent avec le Chromium 141.0.7390.37 préinstallé, par la variable `PW_CHROMIUM_PATH` prévue dans `playwright.config.ts`. Données de test : scénario `vent` (capture réelle du 12 octobre 2026, mise à jour à 00:43 UTC, calcul AROME du 11 octobre à 18:00 UTC, dernière heure du fichier le 13 octobre à 21:00 UTC, soit 51 heures après l'heure du calcul et 45 pas de prévision).
+
+| Test | Résultat |
+|---|---|
+| Prettier, ESLint, tsc | aucun problème |
+| Vitest | 102 tests réussis dans 9 fichiers, dont 4 nouveaux : frise prolongée heure par heure jusqu'à la dernière heure de prévision, aller et retour entre pas et instant sur chaque pas ; prévision ignorée si elle finit avant l'heure pleine suivante ; foyers montrés à la dernière mise à jour pendant la prévision ; délai « dans 13 h », « dans 42 min », et « il y a » pour une heure déjà passée |
+| Couverture | `timeline.ts` et `format.ts` : 100 % des lignes |
+| Build et poids | `index` 13,9 ko gzip, `map` 5,8 ko gzip, CSS 2,5 ko gzip ; MapLibre inchangé (297,4 ko gzip) ; tous sous leur budget |
+| Playwright Chromium desktop et mobile, build servi par wrangler | 107 scénarios réussis, 1 ignoré volontairement (navigation clavier sur mobile) ; dont 7 nouveaux par profil : frise de 213 pas avec le vent, libellé « Prévision, 13 oct., 23:00 (dans 44 h) », bandeau, légende du vent à cette heure et adresse partagée ; première heure de prévision déjà passée à l'horloge (« il y a 3 min ») ; retour à la dernière mise à jour par le bouton ; partie prévision absente sans la couche Vent, et retour à la dernière mise à jour quand la couche est masquée ; instant passé conservé quand la couche change ; lecture arrêtée à la dernière mise à jour puis poursuivie dans la prévision ; heure de prévision de l'adresse retrouvée quand `vent.json` arrive 1 s après le fichier d'état ; heure de prévision de l'adresse ignorée sans la couche Vent ; aucune violation WCAG 2.2 AA relevée par axe sur la partie prévision |
+| Stabilité des 7 nouveaux scénarios | 70 exécutions sur 70 réussies (5 répétitions sur les deux profils Chromium) |
+| Position du curseur | mesurée avant et après l'entrée dans la prévision : identique sur desktop, 2 pixels d'écart sur mobile. La place du bandeau est réservée dès que la partie prévision existe ; dans une première version, le bandeau qui apparaissait faisait remonter le curseur sous le doigt |
+
+Défaut trouvé sur les captures avant la livraison : au format mobile, le bandeau n'avait pas de place dans la grille de la frise et la poussait sur une colonne de plus. Corrigé dans le même commit.
+
+Captures dans `docs/captures/lot-2/`, prises de la même façon que celles de la partie 3 (fond de carte remplacé par un fond uni gris) : `frise-prevision-bureau.png` (fenêtre de 1 280 x 860 pixels) et `frise-prevision-mobile.png` (format Pixel 7), à 19 heures de prévision.
+
+| Non exécuté | Raison | Quand |
+|---|---|---|
+| Playwright avec le Chromium de la version 1.64.1, Firefox et WebKit | non téléchargeables dans l'espace de développement | poste Windows et CI de la PR (5 profils) |
+| pytest, ruff, mypy du pipeline et des outils | aucun fichier Python modifié | CI de la PR |
+| Lighthouse | non installé dans l'espace de développement ; la couche du vent, et donc la partie prévision, est désactivée sur la page mesurée | CI de la PR |
+| Partie prévision avec le fichier de vent du site en ligne | le site n'est pas joignable depuis l'espace de développement | après la fusion, couche Vent affichée sur le site |
+
 ## Mises à jour du 7 novembre 2026
 
 Après la fusion de la PR n°26 et la fermeture des PR Dependabot n°17, 19, 21, 24 et 25, Dependabot a ouvert cinq PR npm (n°27 à 31) puis s'est arrêté sur « Dependabot cannot open any more pull requests ». Ce message, déjà présent dans les mises à jour npm depuis le 22 octobre, veut dire que la limite de 5 PR npm ouvertes à la fois était atteinte : ce n'était pas une panne.
