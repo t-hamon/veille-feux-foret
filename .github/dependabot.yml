@@ -18,6 +18,16 @@ updates:
     cooldown:
       default-days: 7
     open-pull-requests-limit: 5
+    groups:
+      # Minor and patch releases of the other packages come together, in one
+      # pull request a week. Kept apart, in pull requests of their own:
+      # @playwright/test, whose update must also change the image of the
+      # end-to-end job (ci.yml); maplibre-gl, whose download size is weighed
+      # at each release (TESTS.md, November 2026); and every major release.
+      minor-and-patch:
+        patterns: ["*"]
+        exclude-patterns: ["@playwright/test", "maplibre-gl"]
+        update-types: ["minor", "patch"]
     ignore:
       # typescript-eslint accepts TypeScript below 6.1 only (peer dependency
       # ">=4.8.4 <6.1.0" up to 8.71), so a TypeScript 7 update cannot install.
