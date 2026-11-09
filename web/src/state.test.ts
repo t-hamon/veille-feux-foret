@@ -199,6 +199,16 @@ describe("format", () => {
     expect(format.elapsed(60 * 50)).toBe("il y a 2 jours");
   });
 
+  it("writes delays until a forecast hour", () => {
+    expect(format.until(42)).toBe("dans 42 min");
+    expect(format.until(60)).toBe("dans 1 h");
+    expect(format.until(13 * 60 + 29)).toBe("dans 13 h");
+    expect(format.until(43 * 60 + 57)).toBe("dans 44 h");
+    // A forecast hour already gone by, when the data is late.
+    expect(format.until(0)).toBe("à l'instant");
+    expect(format.until(-10)).toBe("il y a 10 min");
+  });
+
   it("writes numbers and coordinates the French way", () => {
     expect(format.hectares(97_971)).toBe("97 971 ha");
     expect(format.coordinates(43.5297, -1.2)).toBe("43,5297° N, 1,2000° O");

@@ -81,6 +81,16 @@ export function elapsed(minutes: number): string {
   return `il y a ${String(Math.floor(hours / 24))} jours`;
 }
 
+/**
+ * "dans 13 h" style delay, from whole minutes, rounded to the hour from one
+ * hour on. A delay already gone by reads like `elapsed`.
+ */
+export function until(minutes: number): string {
+  if (minutes < 1) return elapsed(-minutes);
+  if (minutes < 60) return `dans ${String(minutes)} min`;
+  return `dans ${String(Math.round(minutes / 60))} h`;
+}
+
 export const SATELLITE_LABELS: Record<Satellite, string> = {
   viirs_snpp: "VIIRS, satellite Suomi NPP",
   viirs_noaa20: "VIIRS, satellite NOAA-20",
