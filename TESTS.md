@@ -41,13 +41,15 @@ Exécution du 10 novembre 2026 dans l'espace de développement, branche `lot-2/f
 | Stabilité des 7 nouveaux scénarios | 70 exécutions sur 70 réussies (5 répétitions sur les deux profils Chromium) |
 | Position du curseur | mesurée avant et après l'entrée dans la prévision : identique sur desktop, 2 pixels d'écart sur mobile. La place du bandeau est réservée dès que la partie prévision existe ; dans une première version, le bandeau qui apparaissait faisait remonter le curseur sous le doigt |
 
+Poste Windows du mainteneur, 10 novembre 2026, branche appliquée sur `main` par `git am` : Playwright 1.64.1 sur les 5 profils, 267 scénarios réussis et 3 ignorés volontairement (navigation clavier sur les profils mobiles et WebKit), en 9,1 minutes ; les 7 nouveaux scénarios réussissent sur chacun des 5 profils.
+
 Défaut trouvé sur les captures avant la livraison : au format mobile, le bandeau n'avait pas de place dans la grille de la frise et la poussait sur une colonne de plus. Corrigé dans le même commit.
 
 Captures dans `docs/captures/lot-2/`, prises de la même façon que celles de la partie 3 (fond de carte remplacé par un fond uni gris) : `frise-prevision-bureau.png` (fenêtre de 1 280 x 860 pixels) et `frise-prevision-mobile.png` (format Pixel 7), à 19 heures de prévision.
 
 | Non exécuté | Raison | Quand |
 |---|---|---|
-| Playwright avec le Chromium de la version 1.64.1, Firefox et WebKit | non téléchargeables dans l'espace de développement | poste Windows et CI de la PR (5 profils) |
+| Playwright avec le Chromium de la version 1.64.1, Firefox et WebKit dans l'espace de développement | non téléchargeables | exécutés sur le poste Windows (ci-dessus) ; CI de la PR |
 | pytest, ruff, mypy du pipeline et des outils | aucun fichier Python modifié | CI de la PR |
 | Lighthouse | non installé dans l'espace de développement ; la couche du vent, et donc la partie prévision, est désactivée sur la page mesurée | CI de la PR |
 | Partie prévision avec le fichier de vent du site en ligne | le site n'est pas joignable depuis l'espace de développement | après la fusion, couche Vent affichée sur le site |
