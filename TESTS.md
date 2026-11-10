@@ -27,6 +27,31 @@ Ce fichier consigne les tests du projet et les résultats des dernières exécut
 
 Les contrôles de sécurité (gitleaks, semgrep, bandit, zizmor, OWASP ZAP) sont décrits dans [SECURITY.md](SECURITY.md).
 
+## Résultats du lot 2, partie 5 : météo dans la fiche des foyers
+
+Exécution du 10 novembre 2026 dans l'espace de développement, branche `lot-2/meteo-foyer` partie de `main` (502ec4e), Node.js 22.22.0, scénarios Chromium avec le Chromium 141.0.7390.37 préinstallé (`PW_CHROMIUM_PATH`), comme pour la partie 4. Données de test : `meteo-foyers.json` du scénario `vent` (capture réelle du 12 octobre 2026), avec la météo des 3 foyers.
+
+| Test | Résultat |
+|---|---|
+| Prettier, ESLint, tsc | aucun problème |
+| Vitest | 118 tests réussis dans 10 fichiers, dont 16 nouveaux. Lecture du fichier (`fireweather.test.ts`) : fichier du pipeline lu en entier (3 foyers, 214 heures, calcul du 11 octobre à 18:00 UTC) ; 3 structures refusées avec leur raison ; 12 formes d'entrée écartées et comptées (numéro, point du modèle, point, altitude, dates, première heure, nombre d'heures, séries) ; entrée en double ; valeurs hors bornes laissées vides et comptées ; liste des foyers sans météo ; heure à un instant ; heures suivantes toutes les 3 heures, avec la pluie cumulée et la plus forte rafale des 3 heures, et sans valeur si l'une des 3 heures manque ; fin des données ; distance au point du modèle. Fiche (`ui.test.ts`) : place dans la fiche hors des annonces des lecteurs d'écran, valeurs, source, limites, tableau, heure passée, valeurs absentes, et les 4 cas sans météo. Formats d'heure et abréviations des directions |
+| Couverture | `fireweather.ts`, `format.ts`, `ui.ts`, `wind.ts` : 100 % des lignes |
+| Build et poids | `index` 15,7 ko gzip, `map` 5,8 ko gzip, CSS 2,6 ko gzip ; MapLibre inchangé (297,4 ko gzip) ; tous sous leur budget |
+| `npm audit` | aucune vulnérabilité |
+| Playwright Chromium desktop et mobile, build servi par wrangler | 125 scénarios réussis, 1 ignoré volontairement ; dont 9 nouveaux par profil : fichier demandé une seule fois, à l'ouverture de la première fiche ; météo présente quand l'adresse ouvre une fiche ; météo qui suit la frise, prévision comprise ; foyer dont la météo n'a pas pu être demandée ; foyer sans détection depuis 24 heures ; fichier malformé ; page sans défilement horizontal sur un écran de 320 pixels ; aucune violation WCAG 2.2 AA relevée par axe ; fichier absent |
+| Stabilité des 9 nouveaux scénarios | 90 exécutions sur 90 réussies (5 répétitions, deux profils) |
+
+Défaut antérieur trouvé en vérifiant le tableau sur un écran de 320 pixels (critère 1.4.10 des WCAG) : sur `main`, la page faisait 407 pixels de large, à cause de la liste des fonds de carte et de la colonne du panneau qui prenait la largeur de son contenu le plus large. Corrigé dans un commit à part ; le scénario ajouté vérifie que la page ne dépasse pas 320 pixels ; lancé sur le commit précédent, il échoue (407 pixels).
+
+Captures dans `docs/captures/lot-2/` (fond de carte remplacé par un fond uni gris) : `meteo-foyer-bureau.png` et `meteo-foyer-mobile.png` (format Pixel 7).
+
+| Non exécuté | Raison | Quand |
+|---|---|---|
+| Playwright avec le Chromium de la version 1.64.1, Firefox et WebKit | non téléchargeables dans l'espace de développement | poste Windows et CI de la PR (5 profils) |
+| pytest, ruff, mypy du pipeline et des outils | aucun fichier Python modifié | CI de la PR |
+| Lighthouse | non installé dans l'espace de développement | CI de la PR |
+| Météo avec le fichier du site en ligne | le site n'est pas joignable depuis l'espace de développement | après la fusion, fiche d'un foyer récent sur le site |
+
 ## Résultats du lot 2, partie 4 : frise étendue
 
 Exécution du 10 novembre 2026 dans l'espace de développement, branche `lot-2/frise-etendue` partie de `main` (102fb89), Node.js 22.22.0. Le navigateur de Playwright 1.64.1 ne peut pas y être téléchargé (hôte `cdn.playwright.dev` refusé par le proxy de l'espace) : les scénarios Chromium tournent avec le Chromium 141.0.7390.37 préinstallé, par la variable `PW_CHROMIUM_PATH` prévue dans `playwright.config.ts`. Données de test : scénario `vent` (capture réelle du 12 octobre 2026, mise à jour à 00:43 UTC, calcul AROME du 11 octobre à 18:00 UTC, dernière heure du fichier le 13 octobre à 21:00 UTC, soit 51 heures après l'heure du calcul et 45 pas de prévision).

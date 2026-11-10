@@ -12,7 +12,7 @@ Le projet est construit par lots, chacun livré par une ou plusieurs pull reques
 |---|---|---|
 | 1a | Dépôt, intégration continue, contrôles de sécurité, capture de fixtures | fusionné (PR n°1) |
 | 1b | Carte, foyers FIRMS, périmètres EFFIS, frise temporelle, déploiement | terminé : PR n°3 et n°6 à n°10, puis la PR de clôture (comparaison, captures) |
-| 2 | Prévision : vent, météo AROME, propagation | en cours : capture des réponses d'Open-Meteo (PR n°14), fichiers de vent et de météo dans le pipeline (PR n°15), vent animé sur la carte (PR n°23), frise étendue à la prévision du vent |
+| 2 | Prévision : vent, météo AROME, propagation | en cours : capture des réponses d'Open-Meteo (PR n°14), fichiers de vent et de météo dans le pipeline (PR n°15), vent animé sur la carte (PR n°23), frise étendue à la prévision du vent (PR n°35), météo dans la fiche des foyers |
 | 3 | Imagerie et temps : comparaison, imagerie, relief 3D, fumée | à venir |
 | 4 | Situation : foyers nommés par commune, score de menace, danger Météo-France, moyens aériens, enjeux exposés | à venir |
 | 5 | Fil d'information et archive | à venir |
@@ -26,6 +26,7 @@ Démo en ligne : <https://veille-feux-foret.hamonthibaud.workers.dev>, mise à j
 - **Frise des 7 derniers jours**, heure par heure : la carte montre l'état à l'instant choisi (détections acquises jusque-là, foyers déjà apparus), avec lecture automatique. Quand la couche Vent est affichée, la frise continue après la dernière mise à jour, heure par heure, jusqu'à la dernière heure de prévision du fichier de vent : cette partie a une autre teinte, commence au trait de la dernière mise à jour, et seul le vent y change. La lecture s'arrête à la dernière mise à jour ; un nouvel appui parcourt la prévision.
 - **Surfaces brûlées** Copernicus EFFIS, datées et récentes, chargées seulement quand la couche est activée.
 - **Vent à 10 m** du modèle AROME HD de Météo-France (données Open-Meteo), à l'heure de la frise : traits animés qui suivent le vent, ou flèches fixes (bouton de pause, et au départ si le système demande de réduire les animations). Un clic sur la carte donne le vent, les rafales et la direction au point. Couche désactivée par défaut, chargée à la demande.
+- **Météo au foyer** dans la fiche d'un foyer détecté dans les 24 dernières heures : température, humidité, vent, rafales et pluie du modèle AROME HD à l'heure de la frise, puis un tableau des 24 heures suivantes, toutes les 3 heures. Chargée à l'ouverture de la première fiche.
 - **Bilan de la saison** en France selon EFFIS, comparé à la moyenne depuis 2006.
 - **État des données** : heure de la dernière mise à jour, retard ou ancienneté signalés, état de chaque source, sources en panne nommées. Aucune donnée n'est inventée : une source absente est signalée comme telle.
 - **Deux fonds de carte** : Plan IGN gris par défaut, OpenStreetMap (OpenFreeMap, style Positron) au choix ; si un fond ne répond pas, l'autre est proposé.
@@ -57,7 +58,7 @@ D'après le texte intégral de leurs README, relu le 10 octobre 2026. Deux cases
 | Incendies signalés, évacuations | situation officielle et évacuations saisies à la main à partir des communiqués | incendies signalés par l'association PSFDF, avec leur statut | communiqués des préfectures dans le fil d'information | non prévu à ce jour, à décider |
 | Frise temporelle | 7 jours passés et 12 heures de prévision, lecture animée | 10 jours, détections regroupées par passage satellite, lecture qui accélère dans les creux | semaine rejouée heure par heure, avec le vent et les rotations aériennes | 7 jours heure par heure, lecture animée, âge des détections à l'instant choisi, puis prévision du vent heure par heure jusqu'à la fin du calcul AROME ; curseur continu au lot 3 |
 | Vent animé | oui, Open-Meteo, vent actuel ou prévu | oui, AROME HD (France), ARPEGE (péninsule) | oui | oui, AROME HD (Open-Meteo) à l'heure de la frise, flèches fixes au choix, vent au point cliqué |
-| Météo au point | non indiqué | prévisions horaires d'un point | AROME au foyer, vent mesuré à la station la plus proche, prévision d'ensemble, normales climatiques | lot 2 |
+| Météo au point | non indiqué | prévisions horaires d'un point | AROME au foyer, vent mesuré à la station la plus proche, prévision d'ensemble, normales climatiques | AROME HD au foyer à l'heure de la frise, avec les 24 heures suivantes ; vent mesuré aux stations prévu dans le lot 2 |
 | Prévision de propagation | panaches heure par heure, communes sous le vent, présentés comme estimations non officielles | non indiqué | trajectoire de propagation sur 6 heures | lot 2, méthode et limites documentées |
 | Fumée simulée | non indiqué | oui, présentée comme indicative | non indiqué | lot 3 |
 | Imagerie | non indiqué | orthophotos IGN, Sentinel-2 sans nuages ailleurs | imagerie NASA GIBS par foyer, fond satellite | lot 3, avec relief 3D et comparaison avant / après |
@@ -187,6 +188,7 @@ Détail des éléments repris, sources de données et licences : [CREDITS.md](CR
 - Sur la partie prévision de la frise, seul le vent change : les foyers et les détections restent ceux de la dernière mise à jour, et un bandeau le rappelle. Cette partie n'existe qu'avec la couche Vent et s'arrête à la dernière heure du calcul AROME présente dans le fichier (51 heures après l'heure du calcul dans la capture du 12 octobre 2026).
 - Le délai affiché pour une heure de prévision (« dans 13 h ») est calculé avec l'horloge de l'appareil quand l'heure est choisie ; il n'est pas recalculé tant que le curseur ne bouge pas. Si les données sont en retard, une heure de prévision peut être déjà passée : elle reste une prévision du modèle, et le délai s'affiche alors « il y a ».
 - Le point cliqué pour le vent n'est pas marqué sur la carte ; sa position est donnée dans le panneau de détail.
+- La météo d'un foyer est celle d'un point du modèle sur terre choisi par Open-Meteo près du centre du foyer (distance et altitude indiquées dans la fiche), pas une mesure sur le feu, dont la chaleur et le relief changent les conditions. Elle n'est demandée que pour les foyers détectés dans les 24 heures précédant la mise à jour, 150 nouveaux lieux au plus par mise à jour (limite d'appels d'Open-Meteo) : les autres attendent la mise à jour suivante, et leur fiche le dit.
 
 ## Licence
 
