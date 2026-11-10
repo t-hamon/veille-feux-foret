@@ -3,6 +3,7 @@ import ventFile from "../e2e/fixtures/vent/vent.json?raw";
 import { DATA_FILES, DataFormatError, loadFile } from "./data";
 import {
   type WindField,
+  compassAbbreviation,
   compassPoint,
   components,
   directionOf,
@@ -171,5 +172,17 @@ describe("display of the wind", () => {
     expect(compassPoint(340)).toBe("nord-nord-ouest");
     expect(compassPoint(349)).toBe("nord");
     expect(compassPoint(-90)).toBe("ouest");
+    expect([0, 22.5, 113, 202, 248, 270, 292, 315, 349, -90].map(compassAbbreviation)).toEqual([
+      "N",
+      "NNE",
+      "ESE",
+      "SSO",
+      "OSO",
+      "O",
+      "ONO",
+      "NO",
+      "N",
+      "O",
+    ]);
   });
 });

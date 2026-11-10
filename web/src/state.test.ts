@@ -188,6 +188,10 @@ describe("format", () => {
   it("writes dates in the time zone of metropolitan France", () => {
     expect(format.dateTime(generated)).toBe("3 oct., 13:28");
     expect(format.dateTimeLong(generated)).toBe("3 octobre 2026 à 13:28");
+    expect(format.hour(generated)).toBe("13:28");
+    expect(format.dayShort(generated)).toBe("3 oct.");
+    // 22:30 UTC on 3 October is already 4 October in Paris.
+    expect(format.dayShort(new Date("2026-10-03T22:30:00Z"))).toBe("4 oct.");
     expect(format.day("2026-09-30")).toBe("30 septembre 2026");
   });
 

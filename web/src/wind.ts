@@ -344,7 +344,35 @@ const POINTS = [
   "nord-nord-ouest",
 ] as const;
 
+const ABBREVIATIONS = [
+  "N",
+  "NNE",
+  "NE",
+  "ENE",
+  "E",
+  "ESE",
+  "SE",
+  "SSE",
+  "S",
+  "SSO",
+  "SO",
+  "OSO",
+  "O",
+  "ONO",
+  "NO",
+  "NNO",
+] as const;
+
+function pointIndex(degrees: number): number {
+  return Math.round((((degrees % 360) + 360) % 360) / 22.5) % 16;
+}
+
+/** Short name of the direction, French style ("O" for ouest). */
+export function compassAbbreviation(degrees: number): string {
+  return ABBREVIATIONS[pointIndex(degrees)] ?? "N";
+}
+
 /** Name of the direction, one of 16 points of the compass. */
 export function compassPoint(degrees: number): string {
-  return POINTS[Math.round((((degrees % 360) + 360) % 360) / 22.5) % 16] ?? "nord";
+  return POINTS[pointIndex(degrees)] ?? "nord";
 }

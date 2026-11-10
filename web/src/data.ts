@@ -11,6 +11,7 @@ export const DATA_FILES = {
   burned: "surfaces-brulees.geojson",
   summary: "bilan.json",
   wind: "vent.json",
+  fireWeather: "meteo-foyers.json",
 } as const;
 
 export type DataFile = keyof typeof DATA_FILES;

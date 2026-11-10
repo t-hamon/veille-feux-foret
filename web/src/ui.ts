@@ -4,10 +4,11 @@
 
 import { BASEMAPS } from "./basemaps";
 import type { BurnedArea, Detection, Foyer, LoadResult, Status, Summary } from "./data";
+import { type FireWeather, type WeatherSample, nextHours, sampleAt } from "./fireweather";
 import * as format from "./format";
 import type { Basemap } from "./share";
 import { type SourceGroup, ageMinutes, freshness, groupOf, health } from "./status";
-import { SPEED_CLASSES, type WindSample, compassPoint } from "./wind";
+import { SPEED_CLASSES, type WindSample, compassAbbreviation, compassPoint } from "./wind";
 
 type Child = Node | string | null | undefined | false;
 
@@ -327,6 +328,141 @@ function renderWind(container: HTMLElement, w: WindPoint): void {
   );
 }
 
+// ------------------------------------------------------- weather of a fire
+
+export type FoyerWeatherModel =
+  | { state: "loading" }
+  | { state: "unavailable"; reason: string }
+  /** No detection in the 24 hours before the update: no weather asked for. */
+  | { state: "old" }
+  /** A recent cluster whose weather could not be fetched for this update. */
+  | { state: "missing" }
+  | {
+      state: "ok";
+      weather: FireWeather;
+      /** Hour of the entry for the instant shown, or null when it has none. */
+      hour: number | null;
+      /** Distance from the centre of the cluster to the point of the model, km. */
+      distanceKm: number;
+    };
+
+function degrees(value: number | null): string {
+  return value === null ? "sans donnée" : `${format.decimal(value)} °C`;
+}
+
+function percent(value: number | null): string {
+  return value === null ? "sans donnée" : `${format.number(value)} %`;
+}
+
+function millimetres(value: number | null): string {
+  return value === null ? "sans donnée" : `${format.decimal(value)} mm`;
+}
+
+function windText(speed: number | null, from: number | null): string {
+  if (speed === null) return "sans donnée";
+  return from === null ? kmh(speed) : `${kmh(speed)}, de ${compassPoint(from)} (${String(from)}°)`;
+}
+
+/** A number of a table cell, the unit being in the column header. */
+function cell(value: number | null, decimals = false): string {
+  if (value === null) return "sans donnée";
+  return decimals ? format.decimal(value) : format.number(Math.round(value));
+}
+
+function hourRows(rows: WeatherSample[]): HTMLTableElement {
+  let day = "";
+  const body = rows.map((r) => {
+    const time = new Date(r.time * 1000);
+    const today = format.dayShort(time);
+    const label = today === day ? format.hour(time) : `${today} ${format.hour(time)}`;
+    day = today;
+    const wind =
+      r.speed === null || r.direction === null
+        ? cell(r.speed)
+        : `${cell(r.speed)} ${compassAbbreviation(r.direction)}`;
+    return el(
+      "tr",
+      {},
+      el("th", { scope: "row" }, label),
+      el("td", {}, cell(r.temperature, true)),
+      el("td", {}, cell(r.humidity)),
+      el("td", {}, wind),
+      el("td", {}, cell(r.gusts)),
+      el("td", {}, cell(r.precipitation, true)),
+    );
+  });
+  const headers = [
+    "Heure",
+    "Temp. (°C)",
+    "Humidité (%)",
+    "Vent (km/h)",
+    "Rafales sur 3 h (km/h)",
+    "Pluie sur 3 h (mm)",
+  ];
+  return el(
+    "table",
+    { class: "weather-table" },
+    el("caption", {}, "Heures suivantes, toutes les 3 heures"),
+    el("thead", {}, el("tr", {}, ...headers.map((h) => el("th", { scope: "col" }, h)))),
+    el("tbody", {}, ...body),
+  );
+}
+
+/** Weather of the AROME model at the fire cluster, at the instant shown. */
+export function renderFoyerWeather(container: HTMLElement, model: FoyerWeatherModel): void {
+  container.replaceChildren(el("h4", {}, "Météo au foyer"));
+  if (model.state !== "ok") {
+    const text = {
+      loading: "Chargement de la météo…",
+      unavailable: model.state === "unavailable" ? `Météo indisponible (${model.reason}).` : "",
+      old: "Météo non calculée : aucune détection depuis 24 heures.",
+      missing:
+        "Météo pas encore disponible pour ce foyer : elle sera demandée à une prochaine mise à jour.",
+    }[model.state];
+    container.append(el("p", { class: "muted" }, text));
+    return;
+  }
+  const w = model.weather;
+  if (model.hour === null) {
+    container.append(el("p", {}, "Pas de météo pour l'instant affiché."));
+    return;
+  }
+  const s = sampleAt(w, model.hour);
+  const time = new Date(s.time * 1000);
+  const reference = w.run ?? w.fetchedAt;
+  const forecast = time > reference;
+  const rows = nextHours(w, model.hour);
+  container.append(
+    el(
+      "dl",
+      {},
+      ...row("Heure", format.dateTimeLong(time)),
+      ...row("Température à 2 m", degrees(s.temperature)),
+      ...row("Humidité relative", percent(s.humidity)),
+      ...row("Vent moyen à 10 m", windText(s.speed, s.direction)),
+      ...row("Rafales sur l'heure", s.gusts === null ? "sans donnée" : kmh(s.gusts)),
+      ...row("Pluie sur l'heure", millimetres(s.precipitation)),
+      ...row(
+        "Source",
+        w.run ? `${MODEL_NAME}, calcul du ${format.dateTimeLong(w.run)}` : MODEL_NAME,
+      ),
+    ),
+    rows.length > 0 ? hourRows(rows) : el("p", {}, "Pas d'heure suivante dans les données."),
+    el(
+      "p",
+      { class: "muted" },
+      forecast
+        ? "Prévision du modèle. "
+        : "Heure passée : prévision archivée du modèle, pas une mesure. ",
+      `Valeurs d'un point du modèle sur terre, à ${format.decimal(model.distanceKm)} km du centre du foyer`,
+      w.elevation === null ? "" : `, altitude ${format.number(Math.round(w.elevation))} m`,
+      ". Les conditions sur le feu lui-même peuvent être très différentes. Données ",
+      link("Open-Meteo.com", OPEN_METEO),
+      ".",
+    ),
+  );
+}
+
 export function renderDetail(container: HTMLElement, selection: Selection, now: Date): void {
   container.replaceChildren();
   if (selection === null) {
@@ -376,6 +512,9 @@ export function renderDetail(container: HTMLElement, selection: Selection, now: 
         { class: "muted" },
         "La surface estimée découle de la taille des pixels détectés : c'est un ordre de grandeur, pas une mesure de la surface brûlée.",
       ),
+      // Follows the timeline without being read again at each step: the
+      // slider already says the instant.
+      el("section", { class: "foyer-weather", "aria-live": "off" }),
     );
     return;
   }

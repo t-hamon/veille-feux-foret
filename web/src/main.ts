@@ -14,6 +14,7 @@ import {
   parseStatus,
   parseSummary,
 } from "./data";
+import { type FireWeatherFile, distanceKm, parseFireWeather, weatherHour } from "./fireweather";
 import * as format from "./format";
 import type { MapHandle, Picked } from "./map";
 import { AGE_COLOURS, WIND_COLOURS } from "./palette";
@@ -21,12 +22,14 @@ import { type Basemap, type SharedState, type View, formatFragment, parseFragmen
 import { LABELS, applyTheme, loadPreference, nextPreference, savePreference } from "./theme";
 import { type Range, fireInstant, instantAt, isForecast, rangeOf, stepOf } from "./timeline";
 import {
+  type FoyerWeatherModel,
   type Selection,
   type WindLegendModel,
   type WindPoint,
   markSelectedFoyer,
   renderAttribution,
   renderDetail,
+  renderFoyerWeather,
   renderFoyers,
   renderLegend,
   renderStatus,
@@ -127,6 +130,8 @@ let burned: LoadResult<BurnedArea[]> | null = null;
 let burnedRejected = 0;
 let wind: LoadResult<WindField> | null = null;
 let windRejected = 0;
+let fireWeather: LoadResult<FireWeatherFile> | null = null;
+let fireWeatherRejected = 0;
 let refreshStatus = (): void => undefined;
 // Set up once the status file is there.
 let updateRange = (): void => undefined;
@@ -221,7 +226,7 @@ async function start(): Promise<void> {
   refreshStatus = () => {
     renderStatus(panel.status, {
       status,
-      rejected: rejected + burnedRejected + windRejected,
+      rejected: rejected + burnedRejected + windRejected + fireWeatherRejected,
       now: new Date(),
       missingFiles,
     });
@@ -246,6 +251,10 @@ async function start(): Promise<void> {
     markSelectedFoyer(panel.foyers, selection?.kind === "foyer" ? selection.foyer.id : null);
     map?.select(selection?.kind === "foyer" ? selection.foyer : null, fly);
     updateAddress();
+    if (selection?.kind === "foyer") {
+      refreshFoyerWeather();
+      void loadFireWeather();
+    }
   }
 
   renderFoyers(panel.foyers, foyerList, null, onSelectFoyer);
@@ -474,8 +483,59 @@ function windPoint(lat: number, lon: number): WindPoint {
   };
 }
 
-/** The wind at a point follows the instant of the timeline. */
+// --------------------------------------------------- weather of the fires
+
+let fireWeatherLoading = false;
+async function loadFireWeather(): Promise<void> {
+  if (fireWeather?.state === "ok" || fireWeatherLoading) return;
+  fireWeatherLoading = true;
+  refreshFoyerWeather();
+  const result = await loadFile("fireWeather", parseFireWeather, fetcher);
+  fireWeatherLoading = false;
+  if (result.state === "ok") {
+    fireWeather = { state: "ok", value: result.value.file };
+    if (result.value.rejected > 0) {
+      fireWeatherRejected = result.value.rejected;
+      refreshStatus();
+    }
+  } else {
+    fireWeather = result;
+  }
+  refreshFoyerWeather();
+}
+
+function foyerWeatherModel(foyer: Foyer): FoyerWeatherModel {
+  if (fireWeather === null || fireWeatherLoading) return { state: "loading" };
+  if (fireWeather.state !== "ok") {
+    return {
+      state: "unavailable",
+      reason: fireWeather.state === "missing" ? "non publiée" : fireWeather.message,
+    };
+  }
+  const weather = fireWeather.value.fires.get(foyer.id);
+  if (!weather) {
+    const recent = fireWeather.value.missing.has(foyer.id) || foyer.detections24h > 0;
+    return { state: recent ? "missing" : "old" };
+  }
+  const instant = state.instant ?? state.range?.now ?? null;
+  return {
+    state: "ok",
+    weather,
+    hour: instant === null ? null : weatherHour(weather, instant),
+    distanceKm: distanceKm([foyer.lat, foyer.lon], weather.cell),
+  };
+}
+
+/** The weather in the sheet of a fire follows the instant of the timeline. */
+function refreshFoyerWeather(): void {
+  if (state.selection?.kind !== "foyer") return;
+  const container = panel.detail.querySelector<HTMLElement>(".foyer-weather");
+  if (container) renderFoyerWeather(container, foyerWeatherModel(state.selection.foyer));
+}
+
+/** The wind at a point and the weather of a fire follow the instant of the timeline. */
 function refreshDetail(): void {
+  if (state.selection?.kind === "foyer") refreshFoyerWeather();
   if (state.selection?.kind !== "wind") return;
   state.selection = windPoint(state.selection.lat, state.selection.lon);
   renderDetail(panel.detail, state.selection, new Date());
