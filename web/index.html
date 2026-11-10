@@ -115,9 +115,13 @@
           <label class="timeline-slider">
             <span class="visually-hidden">Instant affiché</span>
             <input type="range" id="instant" min="0" max="168" step="1" value="168" />
+            <span class="timeline-forecast" aria-hidden="true"></span>
           </label>
           <output id="instant-texte" for="instant"></output>
           <button type="button" id="maintenant" class="button">Dernière mise à jour</button>
+          <p id="prevision" class="timeline-note">
+            Prévision : seul le vent change ; les foyers sont ceux de la dernière mise à jour.
+          </p>
         </div>
         <div class="legend" id="legende" aria-label="Légende"></div>
         <div class="legend" id="legende-vent" aria-label="Légende du vent" hidden></div>

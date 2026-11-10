@@ -6,7 +6,16 @@ import { parseStatus } from "./data";
 import * as format from "./format";
 import { formatFragment, parseFragment } from "./share";
 import { ageMinutes, freshness, health } from "./status";
-import { ageClass, byAge, instantAt, rangeOf, stepOf, visibleFilter } from "./timeline";
+import {
+  ageClass,
+  byAge,
+  fireInstant,
+  instantAt,
+  isForecast,
+  rangeOf,
+  stepOf,
+  visibleFilter,
+} from "./timeline";
 
 const generated = new Date("2026-10-03T11:28:00Z");
 const minutesLater = (m: number) => new Date(generated.getTime() + m * 60_000);
@@ -42,7 +51,7 @@ describe("timeline", () => {
   const end = generated.getTime() / 1000;
 
   it("covers the window hour by hour and ends on the last update", () => {
-    expect(range).toEqual({ start: end - 168 * 3600, end, steps: 168 });
+    expect(range).toEqual({ start: end - 168 * 3600, now: end, end, nowStep: 168, steps: 168 });
     expect(instantAt(range, 168)).toBe(end);
     expect(instantAt(range, 0)).toBe(range.start);
     expect(instantAt(range, 500)).toBe(end);
@@ -50,6 +59,48 @@ describe("timeline", () => {
     expect(stepOf(range, end)).toBe(168);
     expect(stepOf(range, end + 999)).toBe(168);
     expect(stepOf(range, range.start + 3600 * 10 + 5)).toBe(10);
+  });
+
+  it("goes on hour by hour after the last update when a forecast is shown", () => {
+    // Last update at 11:28; the forecast runs to 13:00 the next day.
+    const forecastEnd = Date.parse("2026-10-04T13:00:00Z") / 1000;
+    const extended = rangeOf(generated, 168, forecastEnd);
+    const noon = Date.parse("2026-10-03T12:00:00Z") / 1000;
+    expect(extended).toEqual({
+      start: end - 168 * 3600,
+      now: end,
+      end: forecastEnd,
+      nowStep: 168,
+      steps: 168 + 26,
+    });
+    expect(instantAt(extended, 168)).toBe(end);
+    expect(instantAt(extended, 169)).toBe(noon);
+    expect(instantAt(extended, 194)).toBe(forecastEnd);
+    expect(instantAt(extended, 999)).toBe(forecastEnd);
+    expect(instantAt(extended, 167)).toBe(end - 168 * 3600 + 167 * 3600);
+    expect(stepOf(extended, end)).toBe(168);
+    expect(stepOf(extended, end + 60)).toBe(168);
+    expect(stepOf(extended, noon)).toBe(169);
+    expect(stepOf(extended, noon + 3599)).toBe(169);
+    expect(stepOf(extended, forecastEnd)).toBe(194);
+    expect(stepOf(extended, forecastEnd + 7200)).toBe(194);
+    // Every step gives back its own instant.
+    for (let step = 0; step <= extended.steps; step += 1) {
+      expect(stepOf(extended, instantAt(extended, step))).toBe(step);
+    }
+  });
+
+  it("ignores a forecast that ends before the next whole hour", () => {
+    expect(rangeOf(generated, 168, end + 600)).toEqual(range);
+    expect(rangeOf(generated, 168, null)).toEqual(range);
+  });
+
+  it("keeps the fires of the last update for the forecast hours", () => {
+    const extended = rangeOf(generated, 168, end + 10 * 3600);
+    expect(isForecast(extended, end)).toBe(false);
+    expect(isForecast(extended, end + 1)).toBe(true);
+    expect(fireInstant(extended, end - 3600)).toBe(end - 3600);
+    expect(fireInstant(extended, end + 5 * 3600)).toBe(end);
   });
 
   it("classes detections by age at the chosen instant", () => {
@@ -146,6 +197,16 @@ describe("format", () => {
     expect(format.elapsed(60)).toBe("il y a 1 h");
     expect(format.elapsed(125)).toBe("il y a 2 h 05");
     expect(format.elapsed(60 * 50)).toBe("il y a 2 jours");
+  });
+
+  it("writes delays until a forecast hour", () => {
+    expect(format.until(42)).toBe("dans 42 min");
+    expect(format.until(60)).toBe("dans 1 h");
+    expect(format.until(13 * 60 + 29)).toBe("dans 13 h");
+    expect(format.until(43 * 60 + 57)).toBe("dans 44 h");
+    // A forecast hour already gone by, when the data is late.
+    expect(format.until(0)).toBe("à l'instant");
+    expect(format.until(-10)).toBe("il y a 10 min");
   });
 
   it("writes numbers and coordinates the French way", () => {

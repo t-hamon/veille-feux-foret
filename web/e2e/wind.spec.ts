@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
-import { expect, mapStarted, test } from "./support";
+import { WIND_GENERATED_AT, expect, mapStarted, test } from "./support";
 
 // Wind file of the capture of 12 October 2026: model run of 11 October at
 // 18:00 UTC (20:00 in Paris), data generated at 00:43 UTC.
@@ -14,6 +14,17 @@ const detail = (page: Page) => page.locator("#detail");
 function fragment(page: Page): URLSearchParams {
   return new URLSearchParams(new URL(page.url()).hash.slice(1));
 }
+
+// The timeline: 168 hours up to the update, then the forecast hours of the
+// wind file, from 01:00 UTC on 12 October to its last hour, 21:00 UTC on 13
+// October (23:00 in Paris): 45 more steps.
+const NOW = WIND_GENERATED_AT.getTime() / 1000;
+const LAST_HOUR = Date.UTC(2026, 9, 13, 21) / 1000;
+const slider = (page: Page) => page.getByRole("slider", { name: "Instant affiché" });
+const timeText = (page: Page) => page.locator("#instant-texte");
+const note = (page: Page) => page.locator("#prevision");
+const play = (page: Page) => page.locator("#lecture");
+const latest = (page: Page) => page.getByRole("button", { name: "Dernière mise à jour" });
 
 test.describe("wind layer", () => {
   test("is off by default and fetches nothing", async ({ page, data }) => {
@@ -131,6 +142,135 @@ test.describe("wind layer", () => {
     );
     await expect(legend(page)).toContainText("Vent indisponible");
     await expect(button(page)).toBeHidden();
+  });
+});
+
+test.describe("forecast part of the timeline", () => {
+  test("goes on to the last hour of the wind forecast", async ({ page }) => {
+    await page.goto("/#vent=1");
+    await expect(slider(page)).toHaveAttribute("max", "213");
+    await expect(slider(page)).toHaveValue("168");
+    await expect(note(page)).toBeHidden();
+    await slider(page).focus();
+    await page.keyboard.press("End");
+    // The clock of the tests is 20 minutes after the update: 01:03 UTC.
+    await expect(timeText(page)).toHaveText("Prévision, 13 oct., 23:00 (dans 44 h)");
+    await expect(slider(page)).toHaveAttribute(
+      "aria-valuetext",
+      "Prévision, 13 oct., 23:00 (dans 44 h)",
+    );
+    await expect(note(page)).toHaveText(
+      "Prévision : seul le vent change ; les foyers sont ceux de la dernière mise à jour.",
+    );
+    await expect(slider(page)).toHaveAttribute("aria-describedby", "prevision");
+    await expect(page.locator("#frise")).toHaveAttribute("data-mode", "prevision");
+    await expect(legend(page)).toContainText("Prévision pour le 13 oct., 23:00");
+    await expect(page.locator("#foyers li")).toHaveCount(3);
+    expect(fragment(page).get("instant")).toBe(String(LAST_HOUR));
+
+    // The first hour of the forecast is just gone by on the clock.
+    for (let step = 213; step > 169; step -= 1) await page.keyboard.press("ArrowLeft");
+    await expect(timeText(page)).toHaveText("Prévision, 12 oct., 03:00 (il y a 3 min)");
+
+    await latest(page).click();
+    await expect(slider(page)).toHaveValue("168");
+    await expect(timeText(page)).toContainText("dernière mise à jour");
+    await expect(note(page)).toBeHidden();
+    await expect(slider(page)).not.toHaveAttribute("aria-describedby", "prevision");
+    await expect(latest(page)).toBeDisabled();
+    expect(fragment(page).get("instant")).toBeNull();
+  });
+
+  test("appears with the wind layer only", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator("#frise")).toBeVisible();
+    await expect(slider(page)).toHaveAttribute("max", "168");
+    await expect(page.locator("#frise")).toHaveAttribute("data-prevision", "non");
+    await layer(page).check();
+    await expect(slider(page)).toHaveAttribute("max", "213");
+    await expect(page.locator("#frise")).toHaveAttribute("data-prevision", "oui");
+    await slider(page).focus();
+    await page.keyboard.press("End");
+    await expect(note(page)).toBeVisible();
+
+    // Without the wind, an hour of the forecast goes back to the last update.
+    await layer(page).uncheck();
+    await expect(slider(page)).toHaveAttribute("max", "168");
+    await expect(slider(page)).toHaveValue("168");
+    await expect(timeText(page)).toContainText("dernière mise à jour");
+    await expect(note(page)).toBeHidden();
+    expect(fragment(page).get("instant")).toBeNull();
+  });
+
+  test("keeps a past instant when the wind layer changes", async ({ page }) => {
+    await page.goto(`/#instant=${String(NOW - 24 * 3600)}`);
+    await expect(slider(page)).toHaveValue("144");
+    await layer(page).check();
+    await expect(slider(page)).toHaveAttribute("max", "213");
+    await expect(slider(page)).toHaveValue("144");
+    await layer(page).uncheck();
+    await expect(slider(page)).toHaveAttribute("max", "168");
+    await expect(slider(page)).toHaveValue("144");
+    expect(fragment(page).get("instant")).toBe(String(NOW - 24 * 3600));
+  });
+
+  test("plays up to the last update, then through the forecast", async ({ page }) => {
+    await page.goto(`/#vent=1&instant=${String(NOW - 3 * 3600)}`);
+    await expect(slider(page)).toHaveAttribute("max", "213");
+    await expect(slider(page)).toHaveValue("165");
+    await expect(play(page)).toHaveAttribute(
+      "aria-label",
+      "Lire les 7 derniers jours heure par heure",
+    );
+    await play(page).click();
+    await expect(slider(page)).toHaveValue("168");
+    await expect(play(page)).toHaveText("Lire");
+    await page.waitForTimeout(500);
+    await expect(slider(page)).toHaveValue("168");
+    await expect(play(page)).toHaveAttribute(
+      "aria-label",
+      "Lire la prévision du vent heure par heure",
+    );
+
+    // 45 steps at 150 ms each.
+    await play(page).click();
+    await expect(play(page)).toHaveText("Pause");
+    await expect(slider(page)).toHaveValue("213", { timeout: 15_000 });
+    await expect(play(page)).toHaveText("Lire");
+    expect(fragment(page).get("instant")).toBe(String(LAST_HOUR));
+  });
+
+  test("restores an hour of the forecast from the address", async ({ page }) => {
+    // The wind file arrives after the status file: the hour waits for it.
+    await page.route("**/data/vent.json", async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await route.fallback();
+    });
+    await page.goto(`/#vent=1&instant=${String(LAST_HOUR)}`);
+    await expect(page.locator("#frise")).toBeVisible();
+    await expect(slider(page)).toHaveValue("213");
+    await expect(timeText(page)).toHaveText("Prévision, 13 oct., 23:00 (dans 44 h)");
+    expect(fragment(page).get("instant")).toBe(String(LAST_HOUR));
+  });
+
+  test("ignores an hour of the forecast without the wind layer", async ({ page }) => {
+    await page.goto(`/#instant=${String(LAST_HOUR)}`);
+    await expect(page.locator("#frise")).toBeVisible();
+    await expect(slider(page)).toHaveAttribute("max", "168");
+    await expect(slider(page)).toHaveValue("168");
+    await expect(note(page)).toBeHidden();
+  });
+
+  test("has no automatic accessibility violation", async ({ page }) => {
+    await page.goto("/#vent=1");
+    await expect(slider(page)).toHaveAttribute("max", "213");
+    await slider(page).focus();
+    await page.keyboard.press("End");
+    await expect(note(page)).toBeVisible();
+    const results = await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
+      .analyze();
+    expect(results.violations).toEqual([]);
   });
 });
 
