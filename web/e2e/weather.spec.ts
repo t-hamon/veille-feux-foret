@@ -109,6 +109,16 @@ test.describe("weather in the sheet of a fire", () => {
     );
   });
 
+  test("fits a screen 320 pixels wide without scrolling sideways", async ({ page }) => {
+    // WCAG 1.4.10: before this change, the list of base maps and the widest
+    // line of the panel made the page 407 pixels wide.
+    await page.setViewportSize({ width: 320, height: 700 });
+    await page.goto("/#foyer=1&vent=1");
+    await expect(weather(page).getByRole("table")).toBeVisible();
+    const width = await page.evaluate(() => document.documentElement.scrollWidth);
+    expect(width).toBeLessThanOrEqual(320);
+  });
+
   test("has no automatic accessibility violation", async ({ page }) => {
     await page.goto("/#foyer=1");
     await expect(weather(page).getByRole("table")).toBeVisible();

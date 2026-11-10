@@ -393,6 +393,13 @@ h3 {
   align-items: center;
   gap: 0.5rem;
   white-space: nowrap;
+  max-width: 100%;
+}
+
+/* The list may be narrower than its longest option on a 320 px screen. */
+.field select {
+  min-width: 0;
+  max-width: 100%;
 }
 
 select,
@@ -683,7 +690,9 @@ select,
 
 @media (max-width: 52rem) {
   .layout {
-    grid-template-columns: 1fr;
+    /* minmax(0, 1fr), not 1fr: the column must not grow to the widest
+       content of the panel, or the page scrolls sideways on a 320 px screen. */
+    grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto;
   }
 
