@@ -6,6 +6,7 @@ import completFoyers from "../e2e/fixtures/complet/foyers.geojson?raw";
 import completSurfaces from "../e2e/fixtures/complet/surfaces-brulees.geojson?raw";
 import panneEtat from "../e2e/fixtures/firms-en-panne/etat.json?raw";
 import ventEtat from "../e2e/fixtures/vent/etat.json?raw";
+import ventMeteo from "../e2e/fixtures/vent/meteo-foyers.json?raw";
 import {
   type Foyer,
   parseBurned,
@@ -14,11 +15,13 @@ import {
   parseStatus,
   parseSummary,
 } from "./data";
+import { parseFireWeather } from "./fireweather";
 import { AGE_COLOURS, WIND_COLOURS } from "./palette";
 import {
   markSelectedFoyer,
   renderAttribution,
   renderDetail,
+  renderFoyerWeather,
   renderFoyers,
   renderLegend,
   renderStatus,
@@ -258,6 +261,87 @@ describe("selection in the list", () => {
     expect(third?.getAttribute("aria-pressed")).toBe("true");
     markSelectedFoyer(box, null);
     expect(box.querySelectorAll('[aria-pressed="true"]')).toHaveLength(0);
+  });
+});
+
+describe("weather of a fire", () => {
+  const weather = parseFireWeather(JSON.parse(ventMeteo)).file.fires.get(1);
+  if (!weather) throw new Error("no weather for fire 1");
+
+  it("has its place in the sheet of a fire, out of the live announcements", () => {
+    const foyer = foyers[0];
+    if (!foyer) throw new Error("no foyer");
+    renderDetail(box, { kind: "foyer", foyer }, later(0));
+    const section = box.querySelector(".foyer-weather");
+    expect(section?.getAttribute("aria-live")).toBe("off");
+  });
+
+  it("gives the weather of the hour shown, the next hours, its source and its limits", () => {
+    renderFoyerWeather(box, { state: "ok", weather, hour: 169, distanceKm: 0.224 });
+    expect(box.querySelector("h4")?.textContent).toBe("Météo au foyer");
+    const text = box.textContent;
+    expect(text).toContain("Heure12 octobre 2026 à 03:00");
+    expect(text).toContain("Température à 2 m5,8 °C");
+    expect(text).toContain("Humidité relative100 %");
+    expect(text).toContain("Vent moyen à 10 m5 km/h, de sud-est (127°)");
+    expect(text).toContain("Rafales sur l'heure9 km/h");
+    expect(text).toContain("Pluie sur l'heure0 mm");
+    expect(text).toContain("calcul du 11 octobre 2026 à 20:00");
+    expect(text).toContain("Prévision du modèle.");
+    expect(text).toContain("à 0,2 km du centre du foyer, altitude 154 m");
+    expect(box.querySelector("a")?.getAttribute("href")).toBe("https://open-meteo.com/");
+
+    const table = box.querySelector("table");
+    expect(table?.querySelector("caption")?.textContent).toBe(
+      "Heures suivantes, toutes les 3 heures",
+    );
+    const headers = [...(table?.querySelectorAll("thead th") ?? [])].map((h) => h.textContent);
+    expect(headers).toEqual([
+      "Heure",
+      "Temp. (°C)",
+      "Humidité (%)",
+      "Vent (km/h)",
+      "Rafales sur 3 h (km/h)",
+      "Pluie sur 3 h (mm)",
+    ]);
+    const rows = [...(table?.querySelectorAll("tbody tr") ?? [])].map((r) =>
+      [...r.children].map((c) => c.textContent),
+    );
+    expect(rows).toHaveLength(8);
+    // The day is written on the first row and when it changes.
+    expect(rows[0]).toEqual(["12 oct. 06:00", "5,3", "98", "9 ESE", "13", "0"]);
+    expect(rows[1]?.[0]).toBe("09:00");
+    expect(rows[6]?.[0]).toBe("13 oct. 00:00");
+    expect(table?.querySelector("tbody th")?.getAttribute("scope")).toBe("row");
+  });
+
+  it("says when the hour is past, or has no value", () => {
+    renderFoyerWeather(box, { state: "ok", weather, hour: 10, distanceKm: 0.224 });
+    expect(box.textContent).toContain(
+      "Heure passée : prévision archivée du modèle, pas une mesure.",
+    );
+    const empty = { ...weather, temperature: weather.temperature.map(() => null) };
+    renderFoyerWeather(box, { state: "ok", weather: empty, hour: 169, distanceKm: 0.224 });
+    expect(box.textContent).toContain("Température à 2 msans donnée");
+    expect(box.querySelector("tbody td")?.textContent).toBe("sans donnée");
+    renderFoyerWeather(box, { state: "ok", weather, hour: 212, distanceKm: 0.224 });
+    expect(box.querySelector("table")).toBeNull();
+    expect(box.textContent).toContain("Pas d'heure suivante dans les données.");
+    renderFoyerWeather(box, { state: "ok", weather, hour: null, distanceKm: 0.224 });
+    expect(box.textContent).toContain("Pas de météo pour l'instant affiché.");
+  });
+
+  it("explains why there is no weather", () => {
+    renderFoyerWeather(box, { state: "loading" });
+    expect(box.textContent).toContain("Chargement de la météo…");
+    renderFoyerWeather(box, { state: "unavailable", reason: "non publiée" });
+    expect(box.textContent).toContain("Météo indisponible (non publiée).");
+    renderFoyerWeather(box, { state: "old" });
+    expect(box.textContent).toContain("Météo non calculée : aucune détection depuis 24 heures.");
+    renderFoyerWeather(box, { state: "missing" });
+    expect(box.textContent).toContain(
+      "Météo pas encore disponible pour ce foyer : elle sera demandée à une prochaine mise à jour.",
+    );
   });
 });
 
