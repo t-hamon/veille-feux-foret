@@ -29,6 +29,18 @@ const DAY = new Intl.DateTimeFormat("fr-FR", {
   year: "numeric",
 });
 
+const HOUR = new Intl.DateTimeFormat("fr-FR", {
+  timeZone: TIME_ZONE,
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+const DAY_SHORT = new Intl.DateTimeFormat("fr-FR", {
+  timeZone: TIME_ZONE,
+  day: "numeric",
+  month: "short",
+});
+
 const NUMBER = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 });
 const DECIMAL = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 });
 const COORD = new Intl.NumberFormat("fr-FR", {
@@ -42,6 +54,16 @@ export function dateTime(date: Date): string {
 
 export function dateTimeLong(date: Date): string {
   return DATE_TIME_YEAR.format(date);
+}
+
+/** "06:00", in the time zone of metropolitan France. */
+export function hour(date: Date): string {
+  return HOUR.format(date);
+}
+
+/** "13 oct.", in the time zone of metropolitan France. */
+export function dayShort(date: Date): string {
+  return DAY_SHORT.format(date);
 }
 
 /** A calendar day given as YYYY-MM-DD. */
