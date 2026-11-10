@@ -41,13 +41,15 @@ Exécution du 10 novembre 2026 dans l'espace de développement, branche `lot-2/m
 | Playwright Chromium desktop et mobile, build servi par wrangler | 125 scénarios réussis, 1 ignoré volontairement ; dont 9 nouveaux par profil : fichier demandé une seule fois, à l'ouverture de la première fiche ; météo présente quand l'adresse ouvre une fiche ; météo qui suit la frise, prévision comprise ; foyer dont la météo n'a pas pu être demandée ; foyer sans détection depuis 24 heures ; fichier malformé ; page sans défilement horizontal sur un écran de 320 pixels ; aucune violation WCAG 2.2 AA relevée par axe ; fichier absent |
 | Stabilité des 9 nouveaux scénarios | 90 exécutions sur 90 réussies (5 répétitions, deux profils) |
 
+Poste Windows du mainteneur, 10 novembre 2026, branche appliquée sur `main` par `git am` : Playwright 1.64.1 sur les 5 profils, 315 scénarios, dont 312 réussis et 3 ignorés volontairement (navigation clavier sur les profils mobiles et WebKit), en 9,7 minutes ; les 9 nouveaux scénarios réussissent sur chacun des 5 profils.
+
 Défaut antérieur trouvé en vérifiant le tableau sur un écran de 320 pixels (critère 1.4.10 des WCAG) : sur `main`, la page faisait 407 pixels de large, à cause de la liste des fonds de carte et de la colonne du panneau qui prenait la largeur de son contenu le plus large. Corrigé dans un commit à part ; le scénario ajouté vérifie que la page ne dépasse pas 320 pixels ; lancé sur le commit précédent, il échoue (407 pixels).
 
 Captures dans `docs/captures/lot-2/` (fond de carte remplacé par un fond uni gris) : `meteo-foyer-bureau.png` et `meteo-foyer-mobile.png` (format Pixel 7).
 
 | Non exécuté | Raison | Quand |
 |---|---|---|
-| Playwright avec le Chromium de la version 1.64.1, Firefox et WebKit | non téléchargeables dans l'espace de développement | poste Windows et CI de la PR (5 profils) |
+| Playwright avec le Chromium de la version 1.64.1, Firefox et WebKit dans l'espace de développement | non téléchargeables | exécutés sur le poste Windows (ci-dessus) ; CI de la PR |
 | pytest, ruff, mypy du pipeline et des outils | aucun fichier Python modifié | CI de la PR |
 | Lighthouse | non installé dans l'espace de développement | CI de la PR |
 | Météo avec le fichier du site en ligne | le site n'est pas joignable depuis l'espace de développement | après la fusion, fiche d'un foyer récent sur le site |
