@@ -46,6 +46,8 @@ Documents lus en entier le 11 novembre 2026, transmis en PDF ou en fichier par l
 | zizmor 1.32.0, `--offline --min-severity low` | aucun résultat (la CI utilise la version 1.30.1) |
 | Outils CI (`tools/`) : pytest | 25 tests réussis |
 
+Poste Windows du mainteneur, 12 novembre 2026, branche appliquée sur `main` par `git am`, Python 3.12.10 : pytest du pipeline, 248 tests réussis, couverture 98 %.
+
 | Non exécuté | Raison | Quand |
 |---|---|---|
 | Capture réelle des observations de Météo-France | l'espace de développement ne joint pas le portail ni l'API, et le secret n'existe que dans l'environnement `meteo-france` de GitHub | workflow **Capture fixtures**, lancé après la fusion ; les réponses fixeront le format lu par le pipeline dans la partie suivante |
