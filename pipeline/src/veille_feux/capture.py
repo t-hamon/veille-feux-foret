@@ -13,13 +13,14 @@ import datetime as dt
 import gzip
 import hashlib
 import json
+import os
 import sys
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from veille_feux import build, geo, meteo
+from veille_feux import build, geo, meteo, meteofrance
 from veille_feux.http import FETCH_ERRORS, Opener, default_opener, fetch
 from veille_feux.sources import (
     EFFIS_DATED_LAYER,
@@ -29,6 +30,7 @@ from veille_feux.sources import (
     FIRMS_LICENCE,
     FRANCE_BBOX,
     GEO_API_LICENCE,
+    METEOFRANCE_LICENCE,
     OPEN_METEO_LICENCE,
     OPEN_METEO_META,
     WEATHER_VARIABLES,
@@ -53,6 +55,11 @@ GEO_SAMPLE_POINT = (43.5297, 5.4474)
 WEATHER_SAMPLE_POINTS = (GEO_SAMPLE_POINT, (44.923, -0.997))
 
 
+# A department for a sample of the 24-hour package of a department, the other
+# form of the hourly observations: Bouches-du-Rhône, fixed like the points above.
+METEOFRANCE_SAMPLE_DEPARTMENT = 13
+
+
 @dataclass(frozen=True)
 class Source:
     id: str
@@ -61,6 +68,8 @@ class Source:
     max_bytes: int
     timeout: float
     licence: str
+    # Sent with the bearer token of the Météo-France API portal.
+    authenticated: bool = False
 
 
 def default_sources(today: dt.date) -> list[Source]:
@@ -124,6 +133,37 @@ def default_sources(today: dt.date) -> list[Source]:
     return sources
 
 
+def meteofrance_sources(now: dt.datetime) -> list[Source]:
+    """Observations of the Météo-France stations: the list of the stations, the
+    three latest published hours of all the stations, the latest one also as
+    GeoJSON, and the 24-hour package of one department."""
+    hours = meteofrance.last_hours(now, 3)
+
+    def source(name: str, url: str, extension: str) -> Source:
+        return Source(name, url, extension, 32 * MB, 120, METEOFRANCE_LICENCE, authenticated=True)
+
+    sources = [source("meteofrance_stations", meteofrance.stations_url(), "csv")]
+    sources += [
+        source(f"meteofrance_hourly_{hour:%Y%m%dT%H}Z", meteofrance.hourly_url(hour), "json")
+        for hour in hours
+    ]
+    sources.append(
+        source(
+            f"meteofrance_hourly_{hours[0]:%Y%m%dT%H}Z_geojson",
+            meteofrance.hourly_url(hours[0], "geojson"),
+            "geojson",
+        )
+    )
+    sources.append(
+        source(
+            f"meteofrance_department_{METEOFRANCE_SAMPLE_DEPARTMENT}_24h",
+            meteofrance.department_url(METEOFRANCE_SAMPLE_DEPARTMENT),
+            "json",
+        )
+    )
+    return sources
+
+
 # A captured FIRMS file that cannot be read (a truncated gzip file ends in EOFError).
 READ_ERRORS: tuple[type[BaseException], ...] = (*build.FIRMS_ERRORS, EOFError)
 
@@ -168,12 +208,16 @@ def capture(
     now: dt.datetime,
     opener: Opener = default_opener,
     entries: list[dict[str, Any]] | None = None,
+    token: str | None = None,
+    auth_error: str = "no access token",
 ) -> dict[str, Any]:
     """Fetch every source, write gzip files and return the manifest.
 
     A failing source is recorded in the manifest instead of stopping the run:
     an outage is itself useful information for the degraded-mode tests.
     ``entries`` are those of a previous call, kept at the start of the manifest.
+    An authenticated source is sent with ``token``; without it, it is recorded
+    as failed with ``auth_error``. The token itself is never written.
     """
     dest.mkdir(parents=True, exist_ok=True)
     entries = list(entries or [])
@@ -184,8 +228,13 @@ def capture(
             "licence": source.licence,
             "fetched_at": now.isoformat(timespec="seconds"),
         }
+        headers = meteofrance.bearer(token) if source.authenticated and token else None
         try:
-            status, body = fetch(source.url, source.max_bytes, source.timeout, opener)
+            if source.authenticated and not token:
+                raise meteofrance.TokenError(auth_error)
+            status, body = fetch(
+                source.url, source.max_bytes, source.timeout, opener, headers=headers
+            )
         except FETCH_ERRORS as exc:
             entry.update({"ok": False, "error": f"{type(exc).__name__}: {exc}"})
         else:
@@ -219,6 +268,21 @@ def main(argv: list[str] | None = None, now: dt.datetime | None = None) -> int:
     extra = fire_weather_sources(args.dest, now)
     if extra:
         manifest = capture(extra, args.dest, now, entries=manifest["sources"])
+    token, auth_error = None, f"{meteofrance.APPLICATION_ID_VARIABLE} is not set"
+    application_id = os.environ.get(meteofrance.APPLICATION_ID_VARIABLE, "")
+    if application_id:
+        try:
+            token = meteofrance.obtain_token(application_id)
+        except FETCH_ERRORS as exc:
+            auth_error = f"token: {type(exc).__name__}: {exc}"
+    manifest = capture(
+        meteofrance_sources(now),
+        args.dest,
+        now,
+        entries=manifest["sources"],
+        token=token,
+        auth_error=auth_error,
+    )
     for entry in manifest["sources"]:
         state = "ok" if entry["ok"] else f"FAILED ({entry['error']})"
         print(f"{entry['id']}: {state}")

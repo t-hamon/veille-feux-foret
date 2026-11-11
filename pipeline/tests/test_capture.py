@@ -10,7 +10,7 @@ from urllib.parse import parse_qs, urlsplit
 import pytest
 
 from tests.helpers import make_opener
-from veille_feux import capture
+from veille_feux import capture, meteofrance
 from veille_feux.capture import Source
 from veille_feux.http import check_url
 from veille_feux.sources import OPEN_METEO_META, WEATHER_VARIABLES, open_meteo_url
@@ -107,20 +107,22 @@ def test_oversized_source_is_recorded_as_failure(tmp_path: Path) -> None:
 
 def test_main_exit_code(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[Path] = []
+    monkeypatch.delenv(meteofrance.APPLICATION_ID_VARIABLE, raising=False)
 
-    def fake_capture(sources: Any, dest: Path, now: dt.datetime) -> dict[str, Any]:
+    def fake_capture(sources: Any, dest: Path, now: dt.datetime, **_: Any) -> dict[str, Any]:
         calls.append(dest)
         return {"sources": [{"id": "a", "ok": False, "error": "down"}]}
 
     monkeypatch.setattr(capture, "capture", fake_capture)
     assert capture.main([str(tmp_path)]) == 1
 
-    def fake_capture_ok(sources: Any, dest: Path, now: dt.datetime) -> dict[str, Any]:
+    def fake_capture_ok(sources: Any, dest: Path, now: dt.datetime, **_: Any) -> dict[str, Any]:
         return {"sources": [{"id": "a", "ok": True}]}
 
     monkeypatch.setattr(capture, "capture", fake_capture_ok)
     assert capture.main([str(tmp_path)]) == 0
-    assert calls == [tmp_path]
+    # The public sources, then the Météo-France stations.
+    assert calls == [tmp_path, tmp_path]
 
 
 FIRES_NOW = dt.datetime(2026, 10, 11, 17, 21, 23, tzinfo=dt.UTC)
@@ -161,8 +163,10 @@ def test_main_adds_the_fire_weather_to_the_manifest(
 ) -> None:
     calls: list[tuple[list[str], int]] = []
 
+    monkeypatch.delenv(meteofrance.APPLICATION_ID_VARIABLE, raising=False)
+
     def fake_capture(
-        sources: Any, dest: Path, now: dt.datetime, entries: Any = None
+        sources: Any, dest: Path, now: dt.datetime, entries: Any = None, **_: Any
     ) -> dict[str, Any]:
         ids = [s.id for s in sources]
         calls.append((ids, len(entries or [])))
@@ -172,5 +176,129 @@ def test_main_adds_the_fire_weather_to_the_manifest(
 
     monkeypatch.setattr(capture, "capture", fake_capture)
     assert capture.main([str(tmp_path)], FIRES_NOW + dt.timedelta(microseconds=456)) == 0
-    assert len(calls) == 2
+    assert len(calls) == 3
     assert calls[1] == (["open_meteo_fire_weather_1"], 12)
+    assert calls[2][0][0] == "meteofrance_stations"
+    assert calls[2][1] == 13
+
+
+# ------------------------------------------------------- Météo-France stations
+
+MF_NOW = dt.datetime(2026, 11, 11, 22, 50, 7, tzinfo=dt.UTC)
+MF_BASE = "https://public-api.meteofrance.fr/public/DPPaquetObs/v2"
+# A stand-in for the bearer token of the portal.
+FAKE_JWT = "a.b.c"
+
+
+def test_meteofrance_sources() -> None:
+    sources = capture.meteofrance_sources(MF_NOW)
+    assert [(s.id, s.url, s.extension) for s in sources] == [
+        ("meteofrance_stations", f"{MF_BASE}/liste-stations", "csv"),
+        (
+            "meteofrance_hourly_20261111T22Z",
+            f"{MF_BASE}/paquet/stations/horaire?date=2026-11-11T22:00:00Z&format=json",
+            "json",
+        ),
+        (
+            "meteofrance_hourly_20261111T21Z",
+            f"{MF_BASE}/paquet/stations/horaire?date=2026-11-11T21:00:00Z&format=json",
+            "json",
+        ),
+        (
+            "meteofrance_hourly_20261111T20Z",
+            f"{MF_BASE}/paquet/stations/horaire?date=2026-11-11T20:00:00Z&format=json",
+            "json",
+        ),
+        (
+            "meteofrance_hourly_20261111T22Z_geojson",
+            f"{MF_BASE}/paquet/stations/horaire?date=2026-11-11T22:00:00Z&format=geojson",
+            "geojson",
+        ),
+        (
+            "meteofrance_department_13_24h",
+            f"{MF_BASE}/paquet/horaire?id-departement=13&format=json",
+            "json",
+        ),
+    ]
+    for s in sources:
+        check_url(s.url)
+        assert s.authenticated
+        assert s.licence == "Licence Ouverte 2.0 (Etalab), source Météo-France"
+
+
+def test_authenticated_sources_carry_the_token(tmp_path: Path) -> None:
+    seen: dict[str, Any] = {}
+    url = f"{MF_BASE}/liste-stations"
+
+    def opener(request: Any, timeout: float) -> Any:
+        seen["authorization"] = request.get_header("Authorization")
+        return make_opener({url: b"Id_station;Nom"})(request, timeout)
+
+    sources = [Source("mf", url, "csv", 1024, 5, "licence", authenticated=True)]
+    manifest = capture.capture(sources, tmp_path, NOW, opener, token=FAKE_JWT)
+    assert seen["authorization"] == f"Bearer {FAKE_JWT}"
+    assert manifest["sources"][0]["ok"] is True
+    # The token is in no file of the capture.
+    assert all(FAKE_JWT.encode() not in path.read_bytes() for path in tmp_path.iterdir())
+
+
+def test_public_sources_never_carry_the_token(tmp_path: Path) -> None:
+    seen: dict[str, Any] = {}
+
+    def opener(request: Any, timeout: float) -> Any:
+        seen["authorization"] = request.get_header("Authorization")
+        return make_opener({FIRMS_URL: b"x"})(request, timeout)
+
+    capture.capture([source(FIRMS_URL)], tmp_path, NOW, opener, token=FAKE_JWT)
+    assert seen["authorization"] is None
+
+
+def test_authenticated_sources_without_token_are_recorded(tmp_path: Path) -> None:
+    url = f"{MF_BASE}/liste-stations"
+    sources = [Source("mf", url, "csv", 1024, 5, "licence", authenticated=True)]
+    opener = make_opener({})
+    manifest = capture.capture(sources, tmp_path, NOW, opener, auth_error="no application ID")
+    assert manifest["sources"][0] == {
+        "id": "mf",
+        "url": url,
+        "licence": "licence",
+        "fetched_at": "2026-08-01T12:00:00+00:00",
+        "ok": False,
+        "error": "TokenError: no application ID",
+    }
+
+
+def test_main_asks_for_a_token_with_the_application_id(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[dict[str, Any]] = []
+    asked: list[str] = []
+
+    def fake_capture(sources: Any, dest: Path, now: dt.datetime, **kwargs: Any) -> dict[str, Any]:
+        calls.append(kwargs)
+        return {"sources": [{"id": s.id, "ok": True} for s in sources]}
+
+    def fake_token(application_id: str) -> str:
+        asked.append(application_id)
+        return FAKE_JWT
+
+    monkeypatch.setattr(capture, "capture", fake_capture)
+    monkeypatch.setattr(meteofrance, "obtain_token", fake_token)
+    monkeypatch.setenv(meteofrance.APPLICATION_ID_VARIABLE, "QUJDOkRFRg==")
+    assert capture.main([str(tmp_path)], MF_NOW) == 0
+    assert asked == ["QUJDOkRFRg=="]
+    assert calls[-1]["token"] == FAKE_JWT
+
+    def failing_token(application_id: str) -> str:
+        raise meteofrance.TokenError("the portal answered without a usable access_token")
+
+    monkeypatch.setattr(meteofrance, "obtain_token", failing_token)
+    capture.main([str(tmp_path)], MF_NOW)
+    assert calls[-1]["token"] is None
+    assert calls[-1]["auth_error"] == (
+        "token: TokenError: the portal answered without a usable access_token"
+    )
+
+    monkeypatch.delenv(meteofrance.APPLICATION_ID_VARIABLE)
+    capture.main([str(tmp_path)], MF_NOW)
+    assert calls[-1]["auth_error"] == "METEOFRANCE_APPLICATION_ID is not set"

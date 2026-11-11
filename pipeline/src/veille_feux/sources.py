@@ -21,6 +21,13 @@ OPEN_METEO_MODEL = "meteofrance_arome_france_hd"
 # Run times of the model; calls to this metadata API are not counted in the limits.
 OPEN_METEO_META = f"https://api.open-meteo.com/data/{OPEN_METEO_MODEL}/static/meta.json"
 
+# Météo-France API portal, read on 11 November 2026 (portal FAQ, specification
+# of the Package Observations API v2 and technical description of the ground
+# network observations dated 30 June 2026): a token valid one hour is asked for
+# with the application ID of the subscribed account, then sent as a bearer token.
+METEOFRANCE_AUTH_URL = "https://portail-api.meteofrance.fr/token"
+METEOFRANCE_OBSERVATIONS = "https://public-api.meteofrance.fr/public/DPPaquetObs/v2"
+
 # west, south, east, north: metropolitan France and Corsica with a small margin.
 FRANCE_BBOX = (-5.5, 41.0, 10.0, 51.5)
 
@@ -39,6 +46,12 @@ GEO_API_LICENCE = "Licence Ouverte (Etalab): INSEE COG and IGN ADMIN EXPRESS, vi
 OPEN_METEO_LICENCE = (
     "CC BY 4.0 (Open-Meteo.com, AROME France HD model of Météo-France), free non-commercial API"
 )
+
+# Read on 11 October 2026 (special terms of the portal, version of 1 June 2024,
+# and licence of the API) and on 11 November 2026 (page "Observations in situ"):
+# Licence Ouverte (Etalab), source to name: Météo-France; personal account and
+# token, never made public; 100 requests a minute for this subscription.
+METEOFRANCE_LICENCE = "Licence Ouverte 2.0 (Etalab), source Météo-France"
 
 # Hourly variables of the AROME France HD model, as named by Open-Meteo.
 WIND_VARIABLES = ("wind_speed_10m", "wind_direction_10m", "wind_gusts_10m")
@@ -201,5 +214,7 @@ ALLOWED_HOSTS = frozenset(
         GEO_API_COMMUNES,
         OPEN_METEO_FORECAST,
         OPEN_METEO_META,
+        METEOFRANCE_AUTH_URL,
+        METEOFRANCE_OBSERVATIONS,
     )
 )
