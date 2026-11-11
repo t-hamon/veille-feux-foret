@@ -4,6 +4,11 @@ name: Capture fixtures
 # sources listed in pipeline/src/veille_feux/capture.py and pushes them to a new
 # branch named fixtures/capture-<run id>. Nothing is merged automatically: the
 # samples are reviewed, trimmed and turned into test fixtures in a pull request.
+#
+# The observations of the Météo-France stations need the application ID of the
+# account subscribed to the Package Observations API. It is a secret of the
+# environment meteo-france, which only main may use, and only the capture step
+# receives it; the capture code never writes it, nor the token it gives.
 on:
   workflow_dispatch:
 
@@ -26,6 +31,7 @@ jobs:
     name: Capture source samples
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    environment: meteo-france
     permissions:
       contents: write # push the review branch with the captured samples
     steps:
@@ -41,6 +47,8 @@ jobs:
           python -m pip install ./pipeline
       - name: Capture
         id: capture
+        env:
+          METEOFRANCE_APPLICATION_ID: ${{ secrets.METEOFRANCE_APPLICATION_ID }}
         run: |
           stamp="$(date -u +%Y%m%dT%H%MZ)"
           dest="fixtures/raw/${stamp}"

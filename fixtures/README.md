@@ -12,6 +12,8 @@ L'espace de développement n'a pas accès aux serveurs des sources. La capture p
 
 Depuis le lot 2, la capture demande aussi à Open-Meteo la météo aux foyers récents des fichiers FIRMS qu'elle vient d'enregistrer, aux lieux exacts que demanderait la construction des données à l'heure de la capture. Les données de test du site, construites à partir d'une capture, trouvent ainsi la réponse à chacune de leurs requêtes.
 
+Depuis la partie 6 du lot 2, la capture demande aussi à l'API Package Observations de Météo-France la liste des stations, les trois dernières heures publiées de toutes les stations (la dernière aussi en GeoJSON) et le paquet des 24 dernières heures d'un département. Ces requêtes demandent l'identifiant d'application du compte abonné : c'est un secret de l'environnement GitHub `meteo-france`, que seule `main` peut utiliser et que seule l'étape de capture reçoit. Le jeton qu'il permet d'obtenir n'est valable qu'une heure ; ni l'un ni l'autre n'est écrit dans un fichier, un journal ou un message d'erreur. Sans ce secret, ces sources sont notées en échec dans le manifeste et la capture des autres sources continue.
+
 La liste des sources est fixée dans le code : le workflow n'accepte aucun paramètre, il ne peut pas servir à télécharger autre chose.
 
 ## Organisation
@@ -28,3 +30,4 @@ La liste des sources est fixée dans le code : le workflow n'accepte aucun param
 | Copernicus EFFIS | CC BY 4.0 | crédit à EFFIS (Commission européenne, Centre commun de recherche) et mention des modifications |
 | geo.api.gouv.fr (recherche de commune) | Licence Ouverte (Etalab) | INSEE (Code officiel géographique) et IGN (ADMIN EXPRESS), avec la date de la donnée |
 | Open-Meteo, modèle AROME France HD de Météo-France | CC BY 4.0 | lien vers open-meteo.com à côté des données, mention du modèle de Météo-France |
+| Météo-France, API Package Observations (stations au sol) | Licence Ouverte (Etalab) | source « Météo-France » |
