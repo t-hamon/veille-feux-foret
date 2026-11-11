@@ -1,0 +1,203 @@
+{
+  "captured_at": "2026-11-11T23:22:44+00:00",
+  "sources": [
+    {
+      "id": "firms_viirs_snpp_24h",
+      "url": "https://firms.modaps.eosdis.nasa.gov/data/active_fire/suomi-npp-viirs-c2/csv/SUOMI_VIIRS_C2_Europe_24h.csv",
+      "licence": "NASA open data policy, citation and LANCE disclaimer required",
+      "fetched_at": "2026-11-11T23:22:44+00:00",
+      "ok": true,
+      "http_status": 200,
+      "file": "firms_viirs_snpp_24h.csv.gz",
+      "bytes": 112,
+      "sha256": "fe0401e40606fd90dd4cf24dff508a93539089a4aecf701e2a3c85851fe9bf40"
+    },
+    {
+      "id": "firms_viirs_noaa20_24h",
+      "url": "https://firms.modaps.eosdis.nasa.gov/data/active_fire/noaa-20-viirs-c2/csv/J1_VIIRS_C2_Europe_24h.csv",
+      "licence": "NASA open data policy, citation and LANCE disclaimer required",
+      "fetched_at": "2026-11-11T23:22:44+00:00",
+      "ok": true,
+      "http_status": 200,
+      "file": "firms_viirs_noaa20_24h.csv.gz",
+      "bytes": 30421,
+      "sha256": "f8f7cdcb9e125f9fcfce568ab07dbea67f89ed5e9ac12e0f8c913509bc61e50a"
+    },
+    {
+      "id": "firms_viirs_noaa21_24h",
+      "url": "https://firms.modaps.eosdis.nasa.gov/data/active_fire/noaa-21-viirs-c2/csv/J2_VIIRS_C2_Europe_24h.csv",
+      "licence": "NASA open data policy, citation and LANCE disclaimer required",
+      "fetched_at": "2026-11-11T23:22:44+00:00",
+      "ok": true,
+      "http_status": 200,
+      "file": "firms_viirs_noaa21_24h.csv.gz",
+      "bytes": 31083,
+      "sha256": "4c870e6cdf2f49942a0a630ed66e9828126cd4d591febde99a29bbcb71a77881"
+    },
+    {
+      "id": "firms_modis_24h",
+      "url": "https://firms.modaps.eosdis.nasa.gov/data/active_fire/modis-c6.1/csv/MODIS_C6_1_Europe_24h.csv",
+      "licence": "NASA open data policy, citation and LANCE disclaimer required",
+      "fetched_at": "2026-11-11T23:22:44+00:00",
+      "ok": true,
+      "http_status": 200,
+      "file": "firms_modis_24h.csv.gz",
+      "bytes": 2460,
+      "sha256": "339f2e0a1a330754714674b270a502453b70ec751f784f4f40bdbf4addf604f1"
+    },
+    {
+      "id": "effis_burned_dated",
+      "url": "https://maps.effis.emergency.copernicus.eu/effis?service=WFS&version=1.0.0&request=GetFeature&typename=ms%3Amodis.ba.poly.season&outputformat=geojson&bbox=-5.5%2C41.0%2C10.0%2C51.5",
+      "licence": "CC BY 4.0 (EFFIS, European Commission JRC)",
+      "fetched_at": "2026-11-11T23:22:44+00:00",
+      "ok": true,
+      "http_status": 200,
+      "file": "effis_burned_dated.geojson.gz",
+      "bytes": 19259735,
+      "sha256": "5b6cb5d3ac851c1403a5fda1cc61fcc54fb2458d8aee9a82436752012992dc6a"
+    },
+    {
+      "id": "effis_burned_nrt",
+      "url": "https://maps.effis.emergency.copernicus.eu/effis?service=WFS&version=1.0.0&request=GetFeature&typename=ms%3Aeffis.nrt.ba.poly&outputformat=geojson&bbox=-5.5%2C41.0%2C10.0%2C51.5",
+      "licence": "CC BY 4.0 (EFFIS, European Commission JRC)",
+      "fetched_at": "2026-11-11T23:22:44+00:00",
+      "ok": true,
+      "http_status": 200,
+      "file": "effis_burned_nrt.geojson.gz",
+      "bytes": 2702815,
+      "sha256": "80d513994c187715eee0849b8c7693ad767f36e44f3d91e528ca0561b9e7b31e"
+    },
+    {
+      "id": "effis_weekly_stats",
+      "url": "https://api2.effis.emergency.copernicus.eu/statistics/v2/effis/weekly?country=FRA&year=2026",
+      "licence": "CC BY 4.0 (EFFIS, European Commission JRC)",
+      "fetched_at": "2026-11-11T23:22:44+00:00",
+      "ok": true,
+      "http_status": 200,
+      "file": "effis_weekly_stats.json.gz",
+      "bytes": 22638,
+      "sha256": "251cd5096939dac35caf4c71a8749e6a96b11d2e92129e7d0d00db350f7a2d96"
+    },
+    {
+      "id": "geo_api_commune_sample",
+      "url": "https://geo.api.gouv.fr/communes?lat=43.52970&lon=5.44740&fields=nom%2Ccode%2Cdepartement",
+      "licence": "Licence Ouverte (Etalab): INSEE COG and IGN ADMIN EXPRESS, via geo.api.gouv.fr",
+      "fetched_at": "2026-11-11T23:22:44+00:00",
+      "ok": true,
+      "http_status": 200,
+      "file": "geo_api_commune_sample.json.gz",
+      "bytes": 96,
+      "sha256": "c205c07861e11e973ca0a119830cf1ddc0121374267b89ef2a04c7a11644ee87"
+    },
+    {
+      "id": "open_meteo_meta",
+      "url": "https://api.open-meteo.com/data/meteofrance_arome_france_hd/static/meta.json",
+      "licence": "CC BY 4.0 (Open-Meteo.com, AROME France HD model of Météo-France), free non-commercial API",
+      "fetched_at": "2026-11-11T23:22:44+00:00",
+      "ok": true,
+      "http_status": 200,
+      "file": "open_meteo_meta.json.gz",
+      "bytes": 591,
+      "sha256": "efb4358090da41fdf825a389d0aadb833735bc9b51ca2412d9b7e320adf5e2dd"
+    },
+    {
+      "id": "open_meteo_wind_grid_1",
+      "url": "https://api.open-meteo.com/v1/meteofrance?latitude=41,41,41,41.5,41.5,41.5,41.5,41.5,42,42,42,42,42,42,42,42,42,42,42.5,42.5,42.5,42.5,42.5,42.5,42.5,42.5,42.5,42.5,42.5,42.5,42.5,42.5,42.5,42.5,42.5,42.5,42.5,42.5,43,43,43,43,43,43,43,43,43,43,43,43,43,43,43,43,43,43,43,43,43,43,43,43,43.5,43.5,43.5,43.5,43.5,43.5,43.5,43.5,43.5,43.5,43.5,43.5,43.5,43.5,43.5,43.5,43.5,43.5,43.5,43.5,43.5,43.5,43.5,43.5,44,44,44,44,44,44,44,44,44,44,44,44,44,44,44,44,44,44,44,44,44,44,44.5,44.5,44.5,44.5,44.5,44.5,44.5,44.5,44.5,44.5,44.5,44.5,44.5,44.5,44.5,44.5,44.5,44.5,44.5,44.5,44.5,45,45,45,45,45,45,45,45,45,45,45,45,45,45,45,45,45,45,45,45,45.5,45.5,45.5,45.5,45.5,45.5,45.5,45.5,45.5,45.5,45.5,45.5,45.5,45.5,45.5,45.5,45.5,45.5,45.5,45.5,45.5,46,46,46,46,46,46,46,46,46,46,46,46,46,46,46,46,46,46,46,46,46.5,46.5,46.5,46.5,46.5,46.5,46.5,46.5,46.5,46.5,46.5,46.5,46.5,46.5,46.5,46.5,46.5,46.5,46.5,46.5,46.5,46.5,47,47,47,47,47,47,47,47,47,47,47,47,47,47,47,47,47,47,47,47,47,47,47,47,47,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5&longitude=8.5,9,9.5,8,8.5,9,9.5,10,1.5,2,2.5,3,3.5,8,8.5,9,9.5,10,-1.5,-1,-0.5,0,0.5,1,1.5,2,2.5,3,3.5,4,5.5,6,6.5,8,8.5,9,9.5,10,-2,-1.5,-1,-0.5,0,0.5,1,1.5,2,2.5,3,3.5,4,4.5,5,5.5,6,6.5,7,7.5,8.5,9,9.5,10,-2.5,-2,-1.5,-1,-0.5,0,0.5,1,1.5,2,2.5,3,3.5,4,4.5,5,5.5,6,6.5,7,7.5,8,9,9.5,-2,-1.5,-1,-0.5,0,0.5,1,1.5,2,2.5,3,3.5,4,4.5,5,5.5,6,6.5,7,7.5,8,8.5,-2,-1.5,-1,-0.5,0,0.5,1,1.5,2,2.5,3,3.5,4,4.5,5,5.5,6,6.5,7,7.5,8,-2,-1.5,-1,-0.5,0,0.5,1,1.5,2,2.5,3,3.5,4,4.5,5,5.5,6,6.5,7,7.5,-2,-1.5,-1,-0.5,0,0.5,1,1.5,2,2.5,3,3.5,4,4.5,5,5.5,6,6.5,7,7.5,8,-2,-1.5,-1,-0.5,0,0.5,1,1.5,2,2.5,3,3.5,4,4.5,5,5.5,6,6.5,7,7.5,-3,-2.5,-2,-1.5,-1,-0.5,0,0.5,1,1.5,2,2.5,3,3.5,4,4.5,5,5.5,6,6.5,7,7.5,-4,-3.5,-3,-2.5,-2,-1.5,-1,-0.5,0,0.5,1,1.5,2,2.5,3,3.5,4,4.5,5,5.5,6,6.5,7,7.5,8,-5,-4.5,-4,-3.5,-3,-2.5,-2,-1.5,-1,-0.5,0,0.5,1&hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m&models=meteofrance_arome_france_hd&past_hours=168&forecast_hours=60&timeformat=unixtime&wind_speed_unit=kmh&cell_selection=nearest",
+      "licence": "CC BY 4.0 (Open-Meteo.com, AROME France HD model of Météo-France), free non-commercial API",
+      "fetched_at": "2026-11-11T23:22:44+00:00",
+      "ok": true,
+      "http_status": 200,
+      "file": "open_meteo_wind_grid_1.json.gz",
+      "bytes": 1463661,
+      "sha256": "4cda982b9ab8e3069be24ce996f863bb3d411baa7dc142c61d2ae4c829af9d60"
+    },
+    {
+      "id": "open_meteo_wind_grid_2",
+      "url": "https://api.open-meteo.com/v1/meteofrance?latitude=47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48.5,48.5,48.5,48.5,48.5,48.5,48.5,48.5,48.5,48.5,48.5,48.5,48.5,48.5,48.5,48.5,48.5,48.5,48.5,48.5,48.5,48.5,48.5,48.5,48.5,48.5,48.5,48.5,48.5,49,49,49,49,49,49,49,49,49,49,49,49,49,49,49,49,49,49,49,49,49,49,49,49,49,49,49,49,49,49,49.5,49.5,49.5,49.5,49.5,49.5,49.5,49.5,49.5,49.5,49.5,49.5,49.5,49.5,49.5,49.5,49.5,49.5,49.5,49.5,49.5,49.5,49.5,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50.5,50.5,50.5,50.5,50.5,50.5,50.5,50.5,50.5,50.5,51,51,51,51,51,51,51,51.5,51.5,51.5,51.5&longitude=1.5,2,2.5,3,3.5,4,4.5,5,5.5,6,6.5,7,7.5,8,-5.5,-5,-4.5,-4,-3.5,-3,-2.5,-2,-1.5,-1,-0.5,0,0.5,1,1.5,2,2.5,3,3.5,4,4.5,5,5.5,6,6.5,7,7.5,8,8.5,-5.5,-5,-4.5,-4,-3.5,-3,-2.5,-2,-1.5,-1,-0.5,0,0.5,1,1.5,2,2.5,3,3.5,4,4.5,5,5.5,6,6.5,7,7.5,8,8.5,-5.5,-5,-4.5,-4,-3.5,-3,-2.5,-2,-1.5,-1,-0.5,0,0.5,1,1.5,2,2.5,3,3.5,4,4.5,5,5.5,6,6.5,7,7.5,8,8.5,9,-2.5,-2,-1.5,-1,-0.5,0,0.5,1,1.5,2,2.5,3,3.5,4,4.5,5,5.5,6,6.5,7,7.5,8,8.5,-2.5,-2,-1.5,-1,-0.5,0,0.5,1,1.5,2,2.5,3,3.5,4,4.5,5,5.5,6,6.5,1,1.5,2,2.5,3,3.5,4,4.5,5,5.5,1,1.5,2,2.5,3,3.5,4,1.5,2,2.5,3&hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m&models=meteofrance_arome_france_hd&past_hours=168&forecast_hours=60&timeformat=unixtime&wind_speed_unit=kmh&cell_selection=nearest",
+      "licence": "CC BY 4.0 (Open-Meteo.com, AROME France HD model of Météo-France), free non-commercial API",
+      "fetched_at": "2026-11-11T23:22:44+00:00",
+      "ok": true,
+      "http_status": 200,
+      "file": "open_meteo_wind_grid_2.json.gz",
+      "bytes": 959951,
+      "sha256": "28d5d53d39ae7286c5307b399923a62edbbdd66801817c3911e4f56c4dfc188b"
+    },
+    {
+      "id": "open_meteo_weather_sample",
+      "url": "https://api.open-meteo.com/v1/meteofrance?latitude=43.5297,44.923&longitude=5.4474,-0.997&hourly=temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m,wind_direction_10m,wind_gusts_10m&models=meteofrance_arome_france_hd&past_hours=168&forecast_hours=60&timeformat=unixtime&wind_speed_unit=kmh&cell_selection=land",
+      "licence": "CC BY 4.0 (Open-Meteo.com, AROME France HD model of Météo-France), free non-commercial API",
+      "fetched_at": "2026-11-11T23:22:44+00:00",
+      "ok": true,
+      "http_status": 200,
+      "file": "open_meteo_weather_sample.json.gz",
+      "bytes": 17804,
+      "sha256": "3e3657dc5bed82c7abb5b65b6b236cfc5bc49b7448fe84dcff87d30f52a96eab"
+    },
+    {
+      "id": "meteofrance_stations",
+      "url": "https://public-api.meteofrance.fr/public/DPPaquetObs/v2/liste-stations",
+      "licence": "Licence Ouverte 2.0 (Etalab), source Météo-France",
+      "fetched_at": "2026-11-11T23:22:44+00:00",
+      "ok": true,
+      "http_status": 200,
+      "file": "meteofrance_stations.csv.gz",
+      "bytes": 139977,
+      "sha256": "bfada887c2a465dfedfd41ab84225ab5b03d78aacd8b146de46eb3d8e7847fbf"
+    },
+    {
+      "id": "meteofrance_hourly_20261111T23Z",
+      "url": "https://public-api.meteofrance.fr/public/DPPaquetObs/v2/paquet/stations/horaire?date=2026-11-11T23:00:00Z&format=json",
+      "licence": "Licence Ouverte 2.0 (Etalab), source Météo-France",
+      "fetched_at": "2026-11-11T23:22:44+00:00",
+      "ok": true,
+      "http_status": 200,
+      "file": "meteofrance_hourly_20261111T23Z.json.gz",
+      "bytes": 967231,
+      "sha256": "04cbbc76c67ba88e0a60d2d92c20d413969ff037c290ee8b57fedf0c80c31cb6"
+    },
+    {
+      "id": "meteofrance_hourly_20261111T22Z",
+      "url": "https://public-api.meteofrance.fr/public/DPPaquetObs/v2/paquet/stations/horaire?date=2026-11-11T22:00:00Z&format=json",
+      "licence": "Licence Ouverte 2.0 (Etalab), source Météo-France",
+      "fetched_at": "2026-11-11T23:22:44+00:00",
+      "ok": true,
+      "http_status": 200,
+      "file": "meteofrance_hourly_20261111T22Z.json.gz",
+      "bytes": 977737,
+      "sha256": "204080581ec310f4df2c4475976373b25a7d40f1209bd7637282e75b9e1ce422"
+    },
+    {
+      "id": "meteofrance_hourly_20261111T21Z",
+      "url": "https://public-api.meteofrance.fr/public/DPPaquetObs/v2/paquet/stations/horaire?date=2026-11-11T21:00:00Z&format=json",
+      "licence": "Licence Ouverte 2.0 (Etalab), source Météo-France",
+      "fetched_at": "2026-11-11T23:22:44+00:00",
+      "ok": true,
+      "http_status": 200,
+      "file": "meteofrance_hourly_20261111T21Z.json.gz",
+      "bytes": 979636,
+      "sha256": "7bd7bb85f2161fd393e18d13dcbd9431987605622dc45ab3573fa9c55ea4f570"
+    },
+    {
+      "id": "meteofrance_hourly_20261111T23Z_geojson",
+      "url": "https://public-api.meteofrance.fr/public/DPPaquetObs/v2/paquet/stations/horaire?date=2026-11-11T23:00:00Z&format=geojson",
+      "licence": "Licence Ouverte 2.0 (Etalab), source Météo-France",
+      "fetched_at": "2026-11-11T23:22:44+00:00",
+      "ok": true,
+      "http_status": 200,
+      "file": "meteofrance_hourly_20261111T23Z_geojson.geojson.gz",
+      "bytes": 1097471,
+      "sha256": "6ffc371c3b0c317e0da7f4221a909ab7f7a03371bb673ab1ed611521821bfa15"
+    },
+    {
+      "id": "meteofrance_department_13_24h",
+      "url": "https://public-api.meteofrance.fr/public/DPPaquetObs/v2/paquet/horaire?id-departement=13&format=json",
+      "licence": "Licence Ouverte 2.0 (Etalab), source Météo-France",
+      "fetched_at": "2026-11-11T23:22:44+00:00",
+      "ok": true,
+      "http_status": 200,
+      "file": "meteofrance_department_13_24h.json.gz",
+      "bytes": 1139296,
+      "sha256": "92602368ab1b6eb47008936b80cb30f97853cb255dfa4239e5e2fb10beda9c57"
+    }
+  ]
+}
