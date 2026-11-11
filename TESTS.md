@@ -27,6 +27,30 @@ Ce fichier consigne les tests du projet et les résultats des dernières exécut
 
 Les contrôles de sécurité (gitleaks, semgrep, bandit, zizmor, OWASP ZAP) sont décrits dans [SECURITY.md](SECURITY.md).
 
+## Résultats du lot 2, partie 6a : capture des observations de Météo-France
+
+Exécution du 11 novembre 2026 dans l'espace de développement, branche `lot-2/capture-stations` partie de `main` (ad8fed8), Python 3.13.
+
+Documents lus en entier le 11 novembre 2026, transmis en PDF ou en fichier par le mainteneur depuis son compte : FAQ du portail des API de Météo-France, spécification OpenAPI de l'API Package Observations v2 (serveur `https://public-api.meteofrance.fr/public/DPPaquetObs/v2`), page « Observations in situ » du site Open Data de Météo-France, descriptif technique des observations du réseau sol daté du 30 juin 2026. Lues en ligne le même jour : pages « API Paquet Observations » (mise à jour du 4 février 2026) et « API Ciblée Données d'Observation ».
+
+| Test | Résultat |
+|---|---|
+| ruff (lint et format), mypy strict sur `src` et `tests` | aucun problème |
+| pytest | 248 tests réussis, dont 24 nouveaux ; couverture 98 % (`meteofrance.py` et `sources.py` à 100 %) |
+| Nouveaux tests : adresses de l'API | liste des stations, paquet horaire de toutes les stations à une heure ronde UTC, paquet de 24 heures d'un département ; heure refusée si elle n'est pas ronde ou pas en UTC ; dernières heures déjà publiées (heure ronde plus 10 minutes, avec 5 minutes de marge) |
+| Nouveaux tests : jeton | requête POST au portail avec `grant_type=client_credentials` et l'identifiant d'application en en-tête `Basic` ; identifiant qui n'est pas du base64 jamais envoyé (dont une tentative d'injection d'en-tête) ; 6 réponses inutilisables refusées ; ni l'identifiant ni la réponse dans les messages d'erreur, y compris pour un refus 401 du portail ; requête qui porte des identifiants jamais redirigée, même vers un hôte de la liste blanche |
+| Nouveaux tests : capture | 6 sources Météo-France aux adresses exactes, dans la liste blanche ; jeton envoyé en `Bearer` aux seules sources de Météo-France et absent de tous les fichiers écrits ; sans jeton, sources notées en échec avec la raison ; secret absent, jeton refusé, jeton obtenu |
+| Liste blanche des hôtes | exactement les 7 hôtes des sources, dont `portail-api.meteofrance.fr` et `public-api.meteofrance.fr` |
+| bandit sur `pipeline/src` | aucun problème |
+| pip-audit | aucune vulnérabilité connue |
+| zizmor 1.32.0, `--offline --min-severity low` | aucun résultat (la CI utilise la version 1.30.1) |
+| Outils CI (`tools/`) : pytest | 25 tests réussis |
+
+| Non exécuté | Raison | Quand |
+|---|---|---|
+| Capture réelle des observations de Météo-France | l'espace de développement ne joint pas le portail ni l'API, et le secret n'existe que dans l'environnement `meteo-france` de GitHub | workflow **Capture fixtures**, lancé après la fusion ; les réponses fixeront le format lu par le pipeline dans la partie suivante |
+| gitleaks, semgrep | exécutés par la CI | workflow `Security` de la PR |
+
 ## Résultats du lot 2, partie 5 : météo dans la fiche des foyers
 
 Exécution du 10 novembre 2026 dans l'espace de développement, branche `lot-2/meteo-foyer` partie de `main` (502ec4e), Node.js 22.22.0, scénarios Chromium avec le Chromium 141.0.7390.37 préinstallé (`PW_CHROMIUM_PATH`), comme pour la partie 4. Données de test : `meteo-foyers.json` du scénario `vent` (capture réelle du 12 octobre 2026), avec la météo des 3 foyers.
