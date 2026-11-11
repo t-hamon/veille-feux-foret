@@ -2,7 +2,8 @@
 
 The pipeline runs in CI with write access, so every fetch is restricted to
 https URLs on the hosts of ``sources.ALLOWED_HOSTS``, redirects included, and
-responses are read in chunks up to a size cap.
+responses are read in chunks up to a size cap. A request that carries
+credentials is never redirected, so they cannot leave for another URL.
 """
 
 from __future__ import annotations
@@ -56,6 +57,9 @@ class _AllowListRedirectHandler(urllib.request.HTTPRedirectHandler):
         headers: Any,
         newurl: str,
     ) -> urllib.request.Request | None:
+        # urllib would send the Authorization header again to the new URL.
+        if req.has_header("Authorization"):
+            raise FetchError(f"refusing to redirect a request with credentials to {newurl}")
         check_url(newurl)
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
@@ -95,12 +99,21 @@ FETCH_ERRORS: tuple[type[BaseException], ...] = (
 
 
 def fetch(
-    url: str, max_bytes: int, timeout: float, opener: Opener = default_opener
+    url: str,
+    max_bytes: int,
+    timeout: float,
+    opener: Opener = default_opener,
+    headers: dict[str, str] | None = None,
+    data: bytes | None = None,
 ) -> tuple[int, bytes]:
+    """GET the URL, or POST ``data`` when given, with the extra ``headers``.
+
+    Error messages name the URL only: never a header, which may hold credentials.
+    """
     check_url(url)
     # check_url() has just restricted the URL to https and the allow list.
     request = urllib.request.Request(  # noqa: S310
-        url, headers={"User-Agent": USER_AGENT, "Accept": "*/*"}
+        url, data=data, headers={"User-Agent": USER_AGENT, "Accept": "*/*", **(headers or {})}
     )
     with opener(request, timeout) as response:
         status = int(getattr(response, "status", 200))

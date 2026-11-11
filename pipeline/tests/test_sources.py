@@ -77,6 +77,17 @@ def test_wind_urls_split_the_grid() -> None:
 
 def test_open_meteo_hosts_are_allowed() -> None:
     assert "api.open-meteo.com" in sources.ALLOWED_HOSTS
-    assert len(sources.ALLOWED_HOSTS) == 5
     check_url(sources.OPEN_METEO_META)
     assert sources.OPEN_METEO_META.endswith("/meteofrance_arome_france_hd/static/meta.json")
+
+
+def test_allowed_hosts_are_those_of_the_sources() -> None:
+    assert sources.ALLOWED_HOSTS == {
+        "firms.modaps.eosdis.nasa.gov",
+        "maps.effis.emergency.copernicus.eu",
+        "api2.effis.emergency.copernicus.eu",
+        "geo.api.gouv.fr",
+        "api.open-meteo.com",
+        "portail-api.meteofrance.fr",
+        "public-api.meteofrance.fr",
+    }
