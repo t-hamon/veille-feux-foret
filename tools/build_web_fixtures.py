@@ -11,7 +11,12 @@ in that situation, nothing is edited by hand.
 Most scenarios use the capture of 3 October 2026, which predates the Open-Meteo
 sources of lot 2: the build runs without them (with_weather=False), as it did
 then. The "vent" scenario uses the capture of 12 October 2026, the first with
-the weather at the captured clusters, and runs every source.
+the weather at the captured clusters, and runs every source. The "stations"
+scenario uses the capture of 11 November 2026, the first with the Météo-France
+stations: their job runs twice at the time of the capture, as on the first two
+deployments, first on the packages of the departments (only that of the
+Bouches-du-Rhône was captured, the 94 others fail), then on the three latest
+hourly packages; the build then takes over its file.
 
 Running the script again gives the same files.
 
@@ -32,7 +37,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from veille_feux import build, capture
+from veille_feux import build, capture, meteofrance
 
 ROOT = Path(__file__).resolve().parent.parent
 PIPELINE_FIXTURES = ROOT / "pipeline" / "tests" / "fixtures"
@@ -59,10 +64,14 @@ class Capture:
     folder: str
     captured_at: dt.datetime
     with_weather: bool
+    with_stations: bool = False
 
 
 OCTOBER_3 = Capture("20261003T1128Z", dt.datetime(2026, 10, 3, 11, 28, tzinfo=dt.UTC), False)
 OCTOBER_12 = Capture("20261012T0043Z", dt.datetime(2026, 10, 12, 0, 43, 9, tzinfo=dt.UTC), True)
+NOVEMBER_11 = Capture(
+    "20261111T2322Z", dt.datetime(2026, 11, 11, 23, 22, 44, tzinfo=dt.UTC), True, True
+)
 # Kept for the tools and tests that name the first capture.
 FIXTURES = PIPELINE_FIXTURES / OCTOBER_3.folder
 CAPTURED_AT = OCTOBER_3.captured_at
@@ -74,7 +83,12 @@ SCENARIOS: dict[str, tuple[Capture, frozenset[str]]] = {
     "firms-en-panne": (OCTOBER_3, frozenset(i for i in FILES if i.startswith("firms_"))),
     "effis-en-panne": (OCTOBER_3, frozenset(i for i in FILES if i.startswith("effis_"))),
     "vent": (OCTOBER_12, frozenset()),
+    "stations": (NOVEMBER_11, frozenset()),
 }
+
+# A stand-in for the application ID and the token: the portal is not called.
+APPLICATION_ID = "QUJDOkRFRg=="
+TOKEN_ANSWER = b'{"access_token": "header.payload.signature"}'
 
 
 class _Response(io.BytesIO):
@@ -110,6 +124,45 @@ def _opener(bodies: dict[str, bytes | None]) -> Callable[[urllib.request.Request
     return opener
 
 
+def _stations_bodies(source: Capture) -> dict[str, bytes | None]:
+    folder = PIPELINE_FIXTURES / source.folder
+
+    def read(name: str) -> bytes:
+        return gzip.decompress((folder / name).read_bytes())
+
+    bodies: dict[str, bytes | None] = {
+        "https://portail-api.meteofrance.fr/token": TOKEN_ANSWER,
+        meteofrance.stations_url(): read("meteofrance_stations.csv.gz"),
+        meteofrance.department_url(13): read("meteofrance_department_13_24h.json.gz"),
+    }
+    for hour in meteofrance.last_hours(source.captured_at, 3):
+        name = f"meteofrance_hourly_{hour:%Y%m%dT%H}Z.json.gz"
+        bodies[meteofrance.hourly_url(hour)] = read(name)
+    return bodies
+
+
+def _stations(source: Capture, work: Path) -> Path:
+    """Run the stations job twice, as on the first two deployments."""
+    opener = _opener(_stations_bodies(source))
+
+    def run(name: str, previous: Path | None) -> Path:
+        out = work / name
+        out.mkdir(parents=True)
+        ctx = build.Context(
+            out=out,
+            previous=previous,
+            now=source.captured_at,
+            opener=opener,
+            status={},
+            previous_status={},
+        )
+        build.fetch_stations(ctx, APPLICATION_ID, build.Pacer(0))
+        build._write_json(out / build.STATIONS_STATUS, {"sources": ctx.status})
+        return out
+
+    return run("second", run("first", None))
+
+
 def main(argv: list[str]) -> int:
     if len(argv) != 2:
         print(__doc__, file=sys.stderr)
@@ -119,13 +172,20 @@ def main(argv: list[str]) -> int:
         target = out / name
         if target.exists():
             shutil.rmtree(target)
+        work = out / f".{name}-stations"
+        if work.exists():
+            shutil.rmtree(work)
+        handed = _stations(source, work) if source.with_stations else None
         build.build(
             target,
             None,
             source.captured_at,
             _opener(_bodies(source, failing)),
             with_weather=source.with_weather,
+            handed_stations=handed,
         )
+        if work.exists():
+            shutil.rmtree(work)
         print(f"{name}: {', '.join(sorted(p.name for p in target.iterdir()))}")
     return 0
 
