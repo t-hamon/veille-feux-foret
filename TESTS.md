@@ -47,6 +47,8 @@ Défaut trouvé sur le poste Windows du mainteneur, le 12 novembre 2026 à 07:35
 
 Défaut trouvé par la CI de la PR n°39 (commit `77d6a1e`, 12 novembre 2026) : job Pipeline en échec, 1 test sur 308. Le test du journal du job des stations attendait la ligne écrite hors de GitHub Actions, alors que sous GitHub Actions la construction écrit une annotation (`::notice title=...::...`). C'est le même défaut que celui de la PR n°15 : la suite n'avait pas été lancée avec `GITHUB_ACTIONS=true` dans l'espace de développement, contrairement à la pratique notée alors. Correction : le test vérifie les deux formes, en posant lui-même la variable. La suite a été relancée avec et sans `GITHUB_ACTIONS=true` : 309 tests réussis dans les deux cas.
 
+Poste Windows du mainteneur, 12 novembre 2026 à 07:49 (heure de Paris), branche appliquée sur `main` par `git am` après la correction de l'heure, mais avant celle du test du journal trouvée ensuite par la CI, Python 3.12.10 : pytest du pipeline, 308 tests réussis, couverture 99 %.
+
 | Non exécuté | Raison | Quand |
 |---|---|---|
 | Job des stations réel, avec l'API | l'espace de développement ne joint ni le portail ni l'API, et le secret n'existe que dans l'environnement `meteo-france` | premier run de Deploy après la fusion : il doit relire les 95 départements, puis passer aux paquets horaires |
