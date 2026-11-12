@@ -27,6 +27,33 @@ Ce fichier consigne les tests du projet et les résultats des dernières exécut
 
 Les contrôles de sécurité (gitleaks, semgrep, bandit, zizmor, OWASP ZAP) sont décrits dans [SECURITY.md](SECURITY.md).
 
+## Résultats du lot 2, partie 6b : vent mesuré aux stations dans le pipeline
+
+Exécution du 12 novembre 2026 dans l'espace de développement, branche `lot-2/stations-pipeline` partie de `main` (237db01), Python 3.13. Données de test : réponses réelles de la capture du 11 novembre 2026 à 23:22 UTC (`pipeline/tests/fixtures/20261111T2322Z/`, copies intégrales vérifiées par leur empreinte).
+
+| Test | Résultat |
+|---|---|
+| ruff (lint et format), mypy strict sur `src` et `tests` | aucun problème |
+| pytest, avec et sans `GITHUB_ACTIONS=true` | 309 tests réussis dans les deux cas, dont 61 nouveaux ; couverture 99 % (`meteofrance.py` et `stations.py` à 100 %) |
+| Nouveaux tests : lecture des réponses | paquet horaire de toutes les stations : 2 035 stations, 719 avec du vent en métropole et en Corse, valeurs de la première station, vent calme noté 0 et nord noté 360 ; paquet du département : 120 heures et 16 stations ; 7 valeurs hors bornes écartées et comptées ; 7 formes d'enregistrement écartées ; outre-mer et stations sans vent laissés de côté ; liste des 2 152 stations, noms et altitudes, lignes anormales écartées |
+| Nouveaux tests : historique | premier passage par les départements ; à chaque passage, les 3 dernières heures et celles qui manquent dans les dernières 24 heures ; trou plus ancien comblé une fois par jour au plus, jamais au-delà de 120 heures ; fenêtre de 7 jours ; nouvelles valeurs prioritaires ; aller et retour du fichier ; 21 formes de fichier refusées en entier |
+| Nouveaux tests : job des stations | jeton puis 3 paquets horaires puis liste des stations, au moins 0,65 s entre deux requêtes (moins de 100 par minute) ; 726 stations dans le fichier ; premier passage : jeton, 95 départements, liste ; paquets en échec redemandés au passage suivant ; noms gardés sans la liste ; 4 cas sans jeton et panne de tous les paquets : fichier précédent gardé, source en échec avec sa raison ; fichier précédent modifié non repris ; ni l'identifiant ni le jeton dans les fichiers écrits ou dans le journal |
+| Nouveaux tests : reprise par le job de construction | fichier et état repris ; job en échec : fichier précédent gardé ; job absent : état reporté ; fichier ou état modifiés non repris |
+| bandit sur `pipeline/src` | aucun problème |
+| pip-audit | aucune vulnérabilité connue |
+| zizmor 1.32.0, `--offline --min-severity low` | aucun résultat |
+
+Défaut trouvé sur le poste Windows du mainteneur, le 12 novembre 2026 à 07:35 (heure de Paris), avant l'ouverture de la PR : le test du job des stations prenait l'heure réelle au lieu de celle de la capture. Il ne réussissait que dans l'heure qui suivait la capture, moment où il avait tourné dans l'espace de développement, et demandait sinon des heures absentes des données de test (307 réussis, 1 en échec). `veille-feux-stations` accepte désormais l'heure en paramètre, comme la capture, et le test lui donne celle de la capture. Aucune autre lecture de l'heure réelle dans `pipeline/src`, hors des points d'entrée.
+
+Défaut trouvé par la CI de la PR n°39 (commit `77d6a1e`, 12 novembre 2026) : job Pipeline en échec, 1 test sur 308. Le test du journal du job des stations attendait la ligne écrite hors de GitHub Actions, alors que sous GitHub Actions la construction écrit une annotation (`::notice title=...::...`). C'est le même défaut que celui de la PR n°15 : la suite n'avait pas été lancée avec `GITHUB_ACTIONS=true` dans l'espace de développement, contrairement à la pratique notée alors. Correction : le test vérifie les deux formes, en posant lui-même la variable. La suite a été relancée avec et sans `GITHUB_ACTIONS=true` : 309 tests réussis dans les deux cas.
+
+| Non exécuté | Raison | Quand |
+|---|---|---|
+| Job des stations réel, avec l'API | l'espace de développement ne joint ni le portail ni l'API, et le secret n'existe que dans l'environnement `meteo-france` | premier run de Deploy après la fusion : il doit relire les 95 départements, puis passer aux paquets horaires |
+| Enchaînement des trois jobs de Deploy | ne tourne que sur GitHub, depuis `main` | premier run de Deploy après la fusion |
+| Tests du site | aucun fichier du site modifié | CI de la PR |
+| gitleaks, semgrep | exécutés par la CI | workflow `Security` de la PR |
+
 ## Résultats du lot 2, partie 6a : capture des observations de Météo-France
 
 Exécution du 11 novembre 2026 dans l'espace de développement, branche `lot-2/capture-stations` partie de `main` (ad8fed8), Python 3.13.
