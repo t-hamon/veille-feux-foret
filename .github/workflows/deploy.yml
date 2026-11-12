@@ -10,10 +10,12 @@ name: Deploy
 # source does not answer, the build keeps its last data and says so, instead of
 # emptying the map (see pipeline/src/veille_feux/build.py).
 #
-# Two jobs, so that the Cloudflare token never shares a machine with the build
-# tools: the build job runs the pipeline and the npm toolchain without any
-# secret; the deploy job installs dependencies without running their install
-# scripts, and only runs wrangler and the deployment check.
+# Three jobs, so that each secret only meets the code that needs it: the
+# stations job installs the pipeline alone and is the only one to receive the
+# application ID of the Météo-France API; the build job runs the pipeline and
+# the npm toolchain without any secret; the deploy job installs dependencies
+# without running their install scripts, and only runs wrangler and the
+# deployment check with the Cloudflare token.
 on:
   schedule:
     # Minutes 7 and 37 rather than 0 and 30: GitHub delays scheduled runs most
@@ -42,8 +44,54 @@ env:
 # Runners are pinned to Ubuntu 24.04: ubuntu-latest moves to Ubuntu 26 from
 # 19 October 2026, and a runner change should come in its own pull request.
 jobs:
+  stations:
+    name: Fetch the wind measured at the stations
+    runs-on: ubuntu-24.04
+    # 97 requests at most, 0.65 s apart, 60 s timeout each (build.py).
+    timeout-minutes: 15
+    # The application ID only exists in this environment, which only accepts
+    # deployments from main (Settings > Environments).
+    environment: meteo-france
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: Install the pipeline
+        run: |
+          python -m pip install pip==26.2.1
+          python -m pip install ./pipeline
+      - name: Read the stations file of the deployed site
+        run: |
+          mkdir -p previous
+          for name in etat.json stations-vent.json; do
+            if ! curl --fail --silent --show-error --proto '=https' --max-time 60 \
+                 --max-filesize 62914560 --output "previous/$name" "$SITE_URL/data/$name"; then
+              rm -f "previous/$name"
+              echo "::notice title=Previous data::$name could not be read from the deployed site"
+            fi
+          done
+      - name: Fetch the stations
+        env:
+          METEOFRANCE_APPLICATION_ID: ${{ secrets.METEOFRANCE_APPLICATION_ID }}
+        run: veille-feux-stations stations --previous previous
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: stations
+          path: stations
+          retention-days: 1
+          if-no-files-found: error
+
   build:
     name: Build the data and the site
+    # Runs even when the stations job failed: the build then keeps the stations
+    # file of the previous deployment and says so.
+    needs: stations
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
     # The sources are given about 11 minutes at most (build.py timeouts).
     timeout-minutes: 30
@@ -63,15 +111,21 @@ jobs:
       - name: Read the data files of the deployed site
         run: |
           mkdir -p previous
-          for name in etat.json detections.geojson foyers.geojson foyers-emprises.geojson surfaces-brulees.geojson bilan.json vent.json meteo-foyers.json; do
+          for name in etat.json detections.geojson foyers.geojson foyers-emprises.geojson surfaces-brulees.geojson bilan.json vent.json meteo-foyers.json stations-vent.json; do
             if ! curl --fail --silent --show-error --proto '=https' --max-time 60 \
                  --max-filesize 62914560 --output "previous/$name" "$SITE_URL/data/$name"; then
               rm -f "previous/$name"
               echo "::notice title=Previous data::$name could not be read from the deployed site"
             fi
           done
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        # Missing when the stations job failed: the build carries the previous file.
+        continue-on-error: true
+        with:
+          name: stations
+          path: stations
       - name: Build the data
-        run: veille-feux-build data --previous previous
+        run: veille-feux-build data --previous previous --stations stations
       - name: Report the state of each source
         if: ${{ !cancelled() }}
         run: python3 tools/ci_annotations.py status data/etat.json
@@ -96,6 +150,10 @@ jobs:
   deploy:
     name: Deploy and check
     needs: build
+    # Without this condition, a failed stations job would skip the deployment:
+    # by default a job only runs when every job it depends on, directly or not,
+    # succeeded.
+    if: ${{ !cancelled() && needs.build.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     # The Cloudflare secrets only exist in this environment, which only accepts
