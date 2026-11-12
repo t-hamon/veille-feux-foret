@@ -24,8 +24,46 @@ Ce fichier consigne les tests du projet et les résultats des dernières exécut
 | Performance, accessibilité, bonnes pratiques | Lighthouse CI | CI `lighthouse` |
 | Déclencheur des mises à jour : appel à l'API de GitHub, secret absent, refus de GitHub, jeton absent des messages | Vitest | CI `web` |
 | Vent : lecture du fichier, particules, géométrie des traits et des flèches, légende et détail ; affichage, pause, mouvement réduit, frise, clic, fichier malformé ou absent | Vitest, Playwright, fichier de vent écrit par le pipeline | CI `web` et `e2e` |
+| Vent mesuré aux stations : lecture du fichier, heure de la mesure, station la plus proche, légende, détail d'une station, fiche d'un foyer ; affichage, frise, clic, fichier malformé ou absent | Vitest, Playwright, fichier des stations écrit par le pipeline | CI `web` et `e2e` |
 
 Les contrôles de sécurité (gitleaks, semgrep, bandit, zizmor, OWASP ZAP) sont décrits dans [SECURITY.md](SECURITY.md).
+
+## Résultats du lot 2, partie 6c : vent mesuré aux stations sur la carte
+
+Exécution du 12 novembre 2026 dans l'espace de développement, branche `lot-2/stations-carte` partie de `main` (1252367), Python 3.13.18, Node.js 24.22.2, scénarios Chromium avec le Chrome for Testing 153.0.8010.12 préinstallé (`PW_CHROMIUM_PATH`). Données de test : nouveau scénario `stations`, écrit par le vrai pipeline à partir de la capture du 11 novembre 2026 à 23:22 UTC (`web/e2e/fixtures/stations/`) : 120 heures, 726 stations, dont 719 avec une mesure à 23:00 UTC et seulement les 16 des Bouches-du-Rhône avant 21:00 UTC. Ce scénario n'a aucun foyer ; les scénarios de la fiche d'un foyer y servent les foyers du 12 octobre.
+
+| Test | Résultat |
+|---|---|
+| Prettier, ESLint, tsc | aucun problème |
+| Vitest | 142 tests réussis dans 11 fichiers, dont 24 nouveaux. Lecture du fichier (`stations.test.ts`) : fichier du pipeline lu en entier (726 stations, 120 heures, valeurs de la première station) ; fichier vide ; 13 structures refusées avec leur raison ; 10 formes de station écartées et comptées (identifiant, nom, altitude, position, séries) ; station en double ; valeurs hors bornes laissées vides et comptées ; m/s en km/h ; heure mesurée à un instant ; dernière heure du fichier gardée moins de 2 heures après elle ; 719 stations à 23:00 UTC, 16 le 9 novembre ; vent calme sans direction ; nord à 0° ; mesure sans vent moyen ou sans rafale ; station la plus proche à moins de 50 km, aucune au large, limite plus courte. Affichage (`ui.test.ts`) : détail d'une station, station sans mesure, sans nom, sans altitude, vent calme, valeurs absentes ; place dans la fiche d'un foyer hors des annonces des lecteurs d'écran ; station la plus proche avec sa distance et ses limites ; les 4 cas sans station ; légende des stations dans chaque état, légende du vent sans les stations ; mention sous la carte avec les stations seules, avec le vent, et sans elles ; source en échec nommée dans l'état des données ; nom piégé (`<img src=x>`) affiché comme du texte |
+| Couverture | `stations.ts` et `ui.ts` : 100 % des lignes. Adresse de partage (`state.test.ts`) : couche Stations lue, écrite, et valeurs piégées ignorées |
+| Build et poids | `index` 17,8 ko gzip, `map` 6,3 ko gzip, CSS 2,6 ko gzip ; MapLibre inchangé (297,4 ko gzip) ; tous sous leur budget |
+| `npm audit` | aucune vulnérabilité |
+| Playwright Chromium desktop et mobile, build servi par wrangler | 143 scénarios réussis, 1 ignoré volontairement (navigation clavier sur mobile) ; dont 9 nouveaux par profil : case Stations décochée au départ, fichier non demandé avec la seule couche Vent, puis demandé une seule fois avec la case, légende, mention sous la carte et adresse ; couche Stations sans la couche Vent, retrouvée depuis l'adresse, puis masquée ; légende qui suit la frise (16 stations le 9 novembre à 13:00, aucune avant le fichier ni sur une heure de prévision) ; clic sur la station d'Arbent (534 m, 3 km/h, de est-nord-est, rafale 9 km/h), puis heure de prévision ; fichier malformé ; aucune violation WCAG 2.2 AA relevée par axe ; fiche du foyer 1 avec la station de Jamericourt à 22,2 km ; foyer 3 sur une heure de prévision puis sans station à moins de 50 km ; fichier absent |
+| Stabilité des 9 nouveaux scénarios | 90 exécutions sur 90 réussies (5 répétitions, deux profils) |
+| Largeur de 320 pixels, couches Vent et Stations cochées | page sans défilement horizontal ; les cases des couches passent sur trois lignes |
+| Pipeline : ruff, mypy strict, pytest avec et sans `GITHUB_ACTIONS=true` | aucun problème ; 310 tests réussis dans les deux cas, dont 1 nouveau, couverture 99 %. Le message du job des stations nomme désormais les paquets non lus (10 au plus, puis leur nombre) |
+| bandit sur `pipeline/src`, pip-audit | aucun problème, aucune vulnérabilité connue |
+| Outils CI (`tools/`) : ruff, mypy strict, pytest, lancés depuis `tools/` comme dans la CI | aucun problème ; 25 tests réussis, dont la concordance du scénario `stations` avec ce qu'écrit le pipeline |
+
+Défauts trouvés et changements faits avant la livraison, sur les captures et à la relecture :
+- au zoom de la France entière, les 719 pastilles se recouvraient en une masse noire qui cachait le vent du modèle. Sur décision du mainteneur, la couche ne garde plus que les stations qui ne se chevauchent pas, une partie seulement au zoom de départ et toutes en zoomant, et la légende le dit ;
+- Météo-France publie la mesure d'une heure ronde une dizaine de minutes après : à l'instant d'une mise à jour faite avant, la carte n'aurait montré aucune station, environ une mise à jour sur deux. Sur décision du mainteneur, la dernière heure du fichier est montrée, avec son heure, pendant moins de 2 heures ;
+- après les premières captures, le mainteneur a demandé de pouvoir garder le seul vent animé : les stations ont désormais leur propre case, « Stations », décochée par défaut et indépendante de la couche Vent, avec leur propre légende ; elles se dessinent par-dessus les traits du vent animé sans les remplacer (vérifié sur une capture avec l'animation) ;
+- ruff, lancé depuis `tools/` comme dans la CI, refusait un `assert` ajouté dans `tools/build_web_fixtures.py` (règle S101), alors que la vérification lancée depuis la racine du dépôt n'appliquait pas cette règle. Corrigé sans `assert`.
+
+Captures dans `docs/captures/lot-2/`, prises dans l'espace de développement par Playwright (Chromium) sur le build servi par wrangler : les fonds de carte n'y sont pas joignables et sont remplacés par un fond uni gris, comme dans les tests end-to-end, et les vitesses sont écrites avec une police de substitution (DejaVu Sans Bold, glyphes produits pour la capture seulement, rien de ce qui sert à les produire n'est dans le dépôt) au lieu de celle du fond de carte. `stations-france-bureau.png` (zoom de départ), `stations-carte-bureau.png` et `stations-carte-mobile.png` (Provence, zoom 8, format Pixel 7 pour le mobile), `stations-detail-bureau.png` (station d'Arbent cliquée), `stations-foyer-bureau.png` et `stations-foyer-mobile.png` (fiche du foyer 1). `npm run captures` ajoute une capture des stations de Provence avec le vrai fond de carte (`desktop-vent-stations.png`).
+
+Poste Windows du mainteneur, 12 novembre 2026 vers 22:20 (heure de Paris), première version de la branche (stations affichées avec la couche Vent, avant la case « Stations ») : `npm run captures` avec le vrai fond Plan IGN et sa police. Sur `desktop-vent-stations.png`, les pastilles, les flèches et les vitesses de Provence sont lisibles, et des noms du fond de carte restent visibles à côté des stations (Montpellier, Arles, Manosque, Brignoles) ; une seule capture ne permet pas de dire si d'autres noms sont masqués.
+
+| Non exécuté | Raison | Quand |
+|---|---|---|
+| Playwright avec le Chromium de la version 1.64.1, Firefox et WebKit dans l'espace de développement | non téléchargeables | poste Windows ; CI de la PR |
+| Affichage avec le vrai fond de carte dans l'espace de développement | fonds de carte injoignables | vu sur le poste Windows (ci-dessus) ; après la fusion, sur le site |
+| Poids réel du fichier des stations sur 7 jours | le site n'est pas joignable depuis l'espace de développement ; estimé à 1,5 Mo, 260 ko compressé, à partir des séries de la capture | après la fusion, quand le fichier aura 7 jours |
+| Lighthouse | non installé dans l'espace de développement | CI de la PR |
+| zizmor | aucun workflow modifié | CI de la PR |
+| gitleaks, semgrep | exécutés par la CI | workflow `Security` de la PR |
 
 ## Résultats du lot 2, partie 6b : vent mesuré aux stations dans le pipeline
 
