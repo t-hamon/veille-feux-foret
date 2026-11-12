@@ -258,10 +258,16 @@ h3 {
   margin: 0;
 }
 
-.foyer-weather {
+.foyer-weather,
+.foyer-station {
   margin-top: 1rem;
   padding-top: 0.75rem;
   border-top: 1px solid var(--border);
+}
+
+.foyer-station h4 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
 }
 
 .foyer-weather h4 {
@@ -656,6 +662,17 @@ select,
 
 /* Wind lines are drawn on a light map: each swatch sits on a light band, so
    the dark blues stay visible on the dark theme too. */
+/* Same look as the stations on the map: white disc, dark ring. */
+.swatch-station {
+  width: 0.9rem;
+  height: 0.9rem;
+  margin-right: 0.4rem;
+  vertical-align: -0.1rem;
+  border: 1.5px solid #1f1c19;
+  border-radius: 50%;
+  background: #ffffff;
+}
+
 .swatch-wind {
   width: 1.4rem;
   height: 0.3rem;

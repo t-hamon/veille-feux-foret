@@ -134,7 +134,7 @@ describe("shared view in the address", () => {
   it("reads a complete view", () => {
     expect(
       parseFragment(
-        "#carte=8.50/43.52970/5.44740&fond=osm&instant=1791076800&foyer=3&brule=1&vent=1",
+        "#carte=8.50/43.52970/5.44740&fond=osm&instant=1791076800&foyer=3&brule=1&vent=1&stations=1",
       ),
     ).toEqual({
       view: { zoom: 8.5, lat: 43.5297, lon: 5.4474 },
@@ -143,6 +143,7 @@ describe("shared view in the address", () => {
       foyer: 3,
       burned: true,
       wind: true,
+      stations: true,
     });
   });
 
@@ -154,8 +155,9 @@ describe("shared view in the address", () => {
       foyer: 12,
       burned: true,
       wind: true,
+      stations: true,
     };
-    expect(formatFragment(state)).toContain("&vent=1");
+    expect(formatFragment(state)).toContain("&vent=1&stations=1");
     expect(parseFragment(formatFragment(state))).toEqual(state);
     expect(formatFragment({ basemap: "ign" })).toBe("");
   });
@@ -175,6 +177,8 @@ describe("shared view in the address", () => {
       "#brule=true",
       "#vent=oui",
       "#vent=1x",
+      "#stations=true",
+      "#stations=1<b>",
       `#carte=${"9".repeat(400)}`,
       "#%E0%A4%A",
     ];

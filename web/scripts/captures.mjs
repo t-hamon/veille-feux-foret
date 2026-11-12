@@ -6,10 +6,11 @@
 // - npm run captures: the local build, which must be served first (npm run
 //   build, then npm run serve in another terminal), into docs/captures/build.
 //   The data files are those of the test capture of 3 October 2026
-//   (e2e/fixtures/complet), or of 12 October 2026 for the wind
-//   (e2e/fixtures/vent), served in place of /data/, and the clock of the page
-//   is set 20 minutes after that capture, so the pictures can be compared
-//   from one change to the next.
+//   (e2e/fixtures/complet), of 12 October 2026 for the wind
+//   (e2e/fixtures/vent), or of 11 November 2026 for the wind measured at the
+//   Météo-France stations (e2e/fixtures/stations), served in place of
+//   /data/, and the clock of the page is set 20 minutes after that capture,
+//   so the pictures can be compared from one change to the next.
 // - npm run captures:demo: the deployed site, with its current data, as a
 //   visitor sees it, into docs/captures/en-ligne (the pictures of the README).
 //
@@ -32,6 +33,7 @@ const FIXTURES = join(import.meta.dirname, "..", "e2e", "fixtures");
 const NOW = {
   complet: new Date("2026-10-03T11:48:00Z"),
   vent: new Date("2026-10-12T01:03:09Z"),
+  stations: new Date("2026-11-11T23:42:44Z"),
 };
 
 const args = process.argv.slice(2);
@@ -72,6 +74,14 @@ const SHOTS = [
     scheme: "light",
     hash: "#vent=1&carte=6.00/46.50000/2.50000",
     data: "vent",
+  },
+  {
+    // The Météo-France stations of Provence, with their speed in km/h.
+    name: "desktop-vent-stations",
+    device: { ...DESKTOP, reducedMotion: "reduce" },
+    scheme: "light",
+    hash: "#vent=1&stations=1&carte=8.00/43.50000/5.20000",
+    data: "stations",
   },
 ];
 

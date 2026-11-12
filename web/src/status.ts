@@ -20,12 +20,13 @@ export function freshness(status: Status, now: Date): Freshness {
   return "fresh";
 }
 
-export type SourceGroup = "firms" | "effis" | "meteo";
+export type SourceGroup = "firms" | "effis" | "meteo" | "stations";
 
 export function groupOf(source: SourceStatus): SourceGroup | null {
   if (source.id.startsWith("firms_")) return "firms";
   if (source.id.startsWith("effis_")) return "effis";
   if (source.id.startsWith("open_meteo_")) return "meteo";
+  if (source.id.startsWith("meteofrance_")) return "stations";
   return null;
 }
 
