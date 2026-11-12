@@ -56,7 +56,9 @@ def run(out: Path, bodies: dict[str, bytes | Exception], previous: Path | None =
 def test_all_sources_answer(tmp_path: Path) -> None:
     status = run(tmp_path, real_bodies())
     assert all(entry["ok"] for entry in status["sources"].values())
-    assert set(status["sources"]) == set(build.SOURCE_LABELS) - set(build.WEATHER_SOURCES)
+    assert set(status["sources"]) == (
+        set(build.SOURCE_LABELS) - set(build.WEATHER_SOURCES) - {build.STATIONS_SOURCE}
+    )
     assert status["files"] == sorted(
         [build.DETECTIONS, build.FOYERS, build.OUTLINES, build.BURNED, build.SUMMARY]
     )
@@ -128,7 +130,9 @@ def test_total_firms_outage_without_previous_fails_the_run(
     bodies.update({DATED_URL: OSError("down"), NRT_URL: OSError("down"), STATS_URL: OSError("x")})
     status = run(tmp_path, bodies)
     assert status["files"] == []
-    monkeypatch.setattr(build, "build", lambda out, previous, now: {"sources": {}, "files": []})
+    monkeypatch.setattr(
+        build, "build", lambda out, previous, now, **_: {"sources": {}, "files": []}
+    )
     assert build.main([str(tmp_path)]) == 1
 
 
@@ -245,7 +249,7 @@ def test_carried_errors_stay_on_one_line(
     assert entry["error"] == "x ::error::injected"
     assert entry["count"] is None
     assert entry["label"] == "EFFIS, surfaces brûlées récentes (NRT)"
-    monkeypatch.setattr(build, "build", lambda out, previous, now: status)
+    monkeypatch.setattr(build, "build", lambda out, previous, now, **_: status)
     build.main([str(second)])
     assert all(not line.startswith("::") for line in capsys.readouterr().out.splitlines())
 

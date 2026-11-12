@@ -14,7 +14,13 @@ Products written to the output directory:
   fetched again from Open-Meteo at each new run of the model (every 3 hours);
 - meteo-foyers.json: weather of the same model at each fire cluster with a
   detection in the last 24 hours;
+- stations-vent.json: wind measured at the Météo-France stations over the last
+  7 days, handed over by the job that fetches it (``--stations``), since it
+  alone holds the application ID of the Météo-France API;
 - etat.json: state of every source, read by the map's status panel.
+
+``veille-feux-stations`` is that job: it fetches the stations and writes
+stations-vent.json and etat-stations.json, the state of its source.
 """
 
 from __future__ import annotations
@@ -28,13 +34,14 @@ import os
 import shutil
 import ssl
 import sys
+import time
 import urllib.error
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from veille_feux import effis, firms, foyers, geo, meteo
+from veille_feux import effis, firms, foyers, geo, meteo, meteofrance, stations
 from veille_feux.http import (
     FETCH_ERRORS,
     FetchError,
@@ -89,7 +96,14 @@ BURNED = "surfaces-brulees.geojson"
 SUMMARY = "bilan.json"
 WIND = "vent.json"
 FIRE_WEATHER = "meteo-foyers.json"
+STATIONS = "stations-vent.json"
 STATUS = "etat.json"
+# State of the stations source, written by the job that fetches them.
+STATIONS_STATUS = "etat-stations.json"
+STATIONS_SOURCE = "meteofrance_stations"
+STATIONS_TIMEOUT = 60
+# Below the 100 requests a minute of the subscription, token included.
+STATIONS_MIN_INTERVAL = 0.65
 
 # A source that answers something unexpected is recorded as down; it never
 # stops the build, so the other sources are still updated.
@@ -104,6 +118,17 @@ EFFIS_ERRORS: tuple[type[BaseException], ...] = (
     effis.EffisFormatError,
     ValueError,
     # JSON nested too deeply, or valid JSON of another shape than expected.
+    RecursionError,
+    TypeError,
+    AttributeError,
+    KeyError,
+)
+STATIONS_ERRORS: tuple[type[BaseException], ...] = (
+    *FETCH_ERRORS,
+    meteofrance.ObservationFormatError,
+    UnicodeDecodeError,
+    csv.Error,
+    ValueError,
     RecursionError,
     TypeError,
     AttributeError,
@@ -126,6 +151,7 @@ SOURCE_LABELS = {
     "effis_stats": "EFFIS, statistiques hebdomadaires",
     "open_meteo_wind": "Open-Meteo, vent du modèle AROME HD de Météo-France (grille)",
     "open_meteo_fires": "Open-Meteo, météo du modèle AROME HD de Météo-France aux foyers",
+    STATIONS_SOURCE: "Météo-France, vent mesuré aux stations",
 }
 WEATHER_SOURCES = ("open_meteo_wind", "open_meteo_fires")
 
@@ -194,6 +220,8 @@ def _public_error(exc: BaseException) -> str:
         return f"le serveur a répondu par une erreur (HTTP {exc.code})"
     if isinstance(exc, ResponseTooLargeError):
         return "réponse trop volumineuse"
+    if isinstance(exc, meteofrance.TokenError):
+        return "accès à l'API refusé ou impossible"
     if isinstance(exc, FetchError):
         return "adresse refusée par les contrôles de sécurité"
     cause = exc.reason if isinstance(exc, urllib.error.URLError) else exc
@@ -710,6 +738,173 @@ def build_weather(ctx: Context, clusters: list[foyers.Foyer] | None) -> None:
         _notice("Open-Meteo", f"{ctx.open_meteo_calls} calls in this build")
 
 
+# ----------------------------------------------------------------- stations
+
+
+class Pacer:
+    """Keeps at least ``interval`` seconds between two requests."""
+
+    def __init__(
+        self,
+        interval: float,
+        clock: Callable[[], float] = time.monotonic,
+        sleep: Callable[[float], None] = time.sleep,
+    ) -> None:
+        self.interval, self.clock, self.sleep = interval, clock, sleep
+        self.last: float | None = None
+
+    def wait(self) -> None:
+        if self.last is not None:
+            delay = self.interval - (self.clock() - self.last)
+            if delay > 0:
+                self.sleep(delay)
+        self.last = self.clock()
+
+
+def _previous_stations(ctx: Context, name: str = STATIONS) -> stations.Stored | None:
+    return stations.read_document(ctx.previous_document(name), FRANCE_BBOX, ctx.now)
+
+
+def fetch_stations(ctx: Context, application_id: str, pacer: Pacer) -> None:
+    """Fetch the hours the file lacks and write stations-vent.json.
+
+    On an outage the previous file is kept and the source marked down. Some
+    packages may fail while others answer: what came is kept, the hours missing
+    are asked for again at the next run.
+    """
+    source_id = STATIONS_SOURCE
+    stored = _previous_stations(ctx) or stations.Stored()
+    wanted = stations.plan(stored, ctx.now)
+
+    def get(url: str, max_bytes: int) -> bytes:
+        pacer.wait()
+        _, body = fetch(
+            url, max_bytes, STATIONS_TIMEOUT, ctx.opener, headers=meteofrance.bearer(token)
+        )
+        return body
+
+    try:
+        if not application_id:
+            raise meteofrance.TokenError(f"{meteofrance.APPLICATION_ID_VARIABLE} is not set")
+        pacer.wait()
+        token = meteofrance.obtain_token(application_id, ctx.opener, STATIONS_TIMEOUT)
+    except STATIONS_ERRORS as exc:
+        ctx.fail(source_id, exc)
+        ctx.copy_previous(STATIONS)
+        return
+    if wanted.backfill:
+        urls = [meteofrance.department_url(d) for d in stations.DEPARTMENTS]
+    else:
+        urls = [
+            meteofrance.hourly_url(dt.datetime.fromtimestamp(hour, dt.UTC)) for hour in wanted.hours
+        ]
+    found: list[meteofrance.Observation] = []
+    dropped = failed = 0
+    last_error: BaseException | None = None
+    for url in urls:
+        try:
+            part, part_dropped = meteofrance.parse_observations(
+                json.loads(get(url, 32 * MB)), FRANCE_BBOX
+            )
+        except STATIONS_ERRORS as exc:
+            failed += 1
+            last_error = exc
+            continue
+        found.extend(part)
+        dropped += part_dropped
+    if failed == len(urls) and last_error is not None:
+        ctx.fail(source_id, last_error)
+        ctx.copy_previous(STATIONS)
+        return
+    infos: dict[str, meteofrance.StationInfo] = {}
+    if wanted.backfill or any(obs.station not in stored.infos for obs in found):
+        try:
+            text = get(meteofrance.stations_url(), 8 * MB).decode("utf-8")
+            infos = meteofrance.parse_station_list(text)
+        except STATIONS_ERRORS as exc:
+            _log_detail(source_id, f"list of the stations: {_short_error(exc)}")
+    merged = stations.merge(stored, found, infos, ctx.now, wanted.backfill)
+    _write_json(ctx.out / STATIONS, stations.document(merged))
+    kind = "department packages" if wanted.backfill else "hourly packages"
+    detail = f"{len(urls) - failed} of {len(urls)} {kind} read"
+    if dropped:
+        detail += f", {dropped} values or records dropped"
+    _notice("Météo-France", detail)
+    ctx.record(source_id, True, count=len(merged.series))
+
+
+def stations_main(argv: list[str] | None = None, now: dt.datetime | None = None) -> int:
+    """veille-feux-stations: the job that alone receives the application ID."""
+    parser = argparse.ArgumentParser(description="Fetch the wind measured at the stations.")
+    parser.add_argument("out", type=Path, help="directory that receives the files")
+    parser.add_argument("--previous", type=Path, help="data files of the previous deployment")
+    args = parser.parse_args(argv)
+    args.out.mkdir(parents=True, exist_ok=True)
+    previous_status = _read_json(args.previous / STATUS if args.previous else None)
+    ctx = Context(
+        out=args.out,
+        previous=args.previous,
+        now=now or dt.datetime.now(dt.UTC).replace(microsecond=0),
+        opener=default_opener,
+        status={},
+        previous_status=previous_status if isinstance(previous_status, dict) else {},
+    )
+    application_id = os.environ.get(meteofrance.APPLICATION_ID_VARIABLE, "")
+    fetch_stations(ctx, application_id, Pacer(STATIONS_MIN_INTERVAL))
+    _write_json(args.out / STATIONS_STATUS, {"sources": ctx.status})
+    entry = ctx.status[STATIONS_SOURCE]
+    state = "ok" if entry["ok"] else f"FAILED ({_one_line(entry['error'])})"
+    print(f"{STATIONS_SOURCE}: {state}")
+    return 0
+
+
+def _handed_status(raw: Any, now: dt.datetime) -> dict[str, Any] | None:
+    """State of the stations source written by their job, checked field by field."""
+    sources = raw.get("sources") if isinstance(raw, dict) else None
+    entry = sources.get(STATIONS_SOURCE) if isinstance(sources, dict) else None
+    if not isinstance(entry, dict) or not isinstance(entry.get("ok"), bool):
+        return None
+    checked = _parse_iso(entry.get("checked_at"))
+    if checked is None or checked > now:
+        return None
+    updated = _parse_iso(entry.get("updated_at"))
+    count = entry.get("count")
+    error = entry.get("error")
+    return {
+        "label": SOURCE_LABELS[STATIONS_SOURCE],
+        "ok": entry["ok"],
+        "checked_at": _iso(checked),
+        "updated_at": _iso(updated) if updated and updated <= now else None,
+        "count": count if isinstance(count, int) and not isinstance(count, bool) else None,
+        "error": _one_line(error) if isinstance(error, str) else None,
+    }
+
+
+def merge_stations(ctx: Context, handed: Path) -> None:
+    """Take over the file and state written by the stations job.
+
+    Both are checked in full before use. When that job did not run or wrote
+    nothing usable, the file of the previous deployment is kept and the state
+    of the source carried over, as for a source not fetched this run.
+    """
+    status = _handed_status(_read_json(handed / STATIONS_STATUS), ctx.now)
+    stored = stations.read_document(_read_json(handed / STATIONS), FRANCE_BBOX, ctx.now)
+    if status is not None and stored is not None:
+        _write_json(ctx.out / STATIONS, stations.document(stored))
+        ctx.status[STATIONS_SOURCE] = status
+        return
+    if status is not None and not status["ok"] and ctx.copy_previous(STATIONS):
+        ctx.status[STATIONS_SOURCE] = status
+        return
+    previous = _previous_stations(ctx)
+    if previous is not None:
+        _write_json(ctx.out / STATIONS, stations.document(previous))
+        fetched = previous.fetched_at
+        ctx.carry(STATIONS_SOURCE, kept=(_iso(fetched) if fetched else None, len(previous.series)))
+    else:
+        ctx.carry(STATIONS_SOURCE)
+
+
 # ---------------------------------------------------------------------- main
 
 
@@ -719,9 +914,12 @@ def build(
     now: dt.datetime,
     opener: Opener = default_opener,
     with_weather: bool = True,
+    handed_stations: Path | None = None,
 ) -> dict[str, Any]:
     """Build every data file. ``with_weather=False`` leaves out the Open-Meteo
-    sources, as before lot 2: the web test data captured then has none."""
+    sources, as before lot 2: the web test data captured then has none.
+    ``handed_stations`` is the directory written by the stations job; without
+    it, the stations source is left out."""
     out.mkdir(parents=True, exist_ok=True)
     previous_status = _read_json(previous / STATUS if previous else None)
     ctx = Context(
@@ -738,6 +936,8 @@ def build(
     build_summary(ctx)
     if with_weather:
         build_weather(ctx, clusters)
+    if handed_stations is not None:
+        merge_stations(ctx, handed_stations)
     status = {
         "generated_at": _iso(now),
         "window_hours": int(WINDOW.total_seconds() // 3600),
@@ -754,8 +954,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--previous", type=Path, help="data files of the previous deployment, if any"
     )
+    parser.add_argument(
+        "--stations", type=Path, help="directory written by veille-feux-stations, if any"
+    )
     args = parser.parse_args(argv)
-    status = build(args.out, args.previous, dt.datetime.now(dt.UTC))
+    status = build(args.out, args.previous, dt.datetime.now(dt.UTC), handed_stations=args.stations)
     for source_id, entry in status["sources"].items():
         state = "ok" if entry["ok"] else f"FAILED ({_one_line(entry['error'])})"
         print(f"{source_id}: {state}")
