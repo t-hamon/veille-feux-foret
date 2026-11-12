@@ -792,22 +792,24 @@ def fetch_stations(ctx: Context, application_id: str, pacer: Pacer) -> None:
         ctx.fail(source_id, exc)
         ctx.copy_previous(STATIONS)
         return
+    # Each package with a short name for the log: department number or hour.
     if wanted.backfill:
-        urls = [meteofrance.department_url(d) for d in stations.DEPARTMENTS]
+        urls = [(str(d), meteofrance.department_url(d)) for d in stations.DEPARTMENTS]
     else:
-        urls = [
-            meteofrance.hourly_url(dt.datetime.fromtimestamp(hour, dt.UTC)) for hour in wanted.hours
-        ]
+        hours = [dt.datetime.fromtimestamp(hour, dt.UTC) for hour in wanted.hours]
+        urls = [(f"{h:%H}:00Z", meteofrance.hourly_url(h)) for h in hours]
     found: list[meteofrance.Observation] = []
     dropped = failed = 0
+    missed: list[str] = []
     last_error: BaseException | None = None
-    for url in urls:
+    for name, url in urls:
         try:
             part, part_dropped = meteofrance.parse_observations(
                 json.loads(get(url, 32 * MB)), FRANCE_BBOX
             )
         except STATIONS_ERRORS as exc:
             failed += 1
+            missed.append(name)
             last_error = exc
             continue
         found.extend(part)
@@ -829,6 +831,9 @@ def fetch_stations(ctx: Context, application_id: str, pacer: Pacer) -> None:
     detail = f"{len(urls) - failed} of {len(urls)} {kind} read"
     if dropped:
         detail += f", {dropped} values or records dropped"
+    if missed:
+        more = f" and {len(missed) - 10} more" if len(missed) > 10 else ""
+        detail += f"; not read: {', '.join(missed[:10])}{more}"
     _notice("Météo-France", detail)
     ctx.record(source_id, True, count=len(merged.series))
 
