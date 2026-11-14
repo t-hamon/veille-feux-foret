@@ -160,7 +160,7 @@ test.describe("forecast part of the timeline", () => {
       "Prévision, 13 oct., 23:00 (dans 44 h)",
     );
     await expect(note(page)).toHaveText(
-      "Prévision : seul le vent change ; les foyers sont ceux de la dernière mise à jour.",
+      "Prévision : les foyers et les détections sont ceux de la dernière mise à jour ; seuls le vent et la propagation estimée suivent l'heure choisie.",
     );
     await expect(slider(page)).toHaveAttribute("aria-describedby", "prevision");
     await expect(page.locator("#frise")).toHaveAttribute("data-mode", "prevision");

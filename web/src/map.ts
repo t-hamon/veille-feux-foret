@@ -14,7 +14,14 @@ import type {
 import { BASEMAPS, rewriteUrl } from "./basemaps";
 import type { BurnedArea, Detection, Foyer, Outline } from "./data";
 import { loadMapLibre } from "./maplibre";
-import { AGE_COLOURS, DATED_COLOUR, FOYER_COLOUR, NRT_COLOUR, SELECTION_COLOUR } from "./palette";
+import {
+  AGE_COLOURS,
+  DATED_COLOUR,
+  FOYER_COLOUR,
+  NRT_COLOUR,
+  SELECTION_COLOUR,
+  SPREAD_COLOUR,
+} from "./palette";
 import type { Basemap, View } from "./share";
 import { type Expression, byAge, visibleFilter } from "./timeline";
 import type { WindField } from "./wind";
@@ -65,6 +72,17 @@ export interface MapOptions {
   onBasemapReady: (basemap: Basemap) => void;
 }
 
+/**
+ * Estimated spread of one active cluster: the ellipses at the hour shown, low
+ * then high estimate, and the paths of the head of the fire over the whole
+ * estimate, low then high, as [lon, lat] points.
+ */
+export interface SpreadShape {
+  foyer: number;
+  rings: ([number, number][] | null)[];
+  paths: [number, number][][];
+}
+
 /** A station shown with the wind it measured at the hour of the instant. */
 export interface StationMarker {
   index: number;
@@ -87,6 +105,8 @@ export interface MapHandle {
   setWindAnimated(animated: boolean): void;
   /** Stations shown, with the wind layer only; an empty list hides them. */
   setStations(stations: StationMarker[]): void;
+  /** Estimated spread shown; an empty list hides it. */
+  setSpread(shapes: SpreadShape[]): void;
   select(foyer: Foyer | null, fly: boolean): void;
   resize(): void;
 }
@@ -197,6 +217,29 @@ function stationsCollection(stations: StationMarker[]): Collection {
   };
 }
 
+function spreadCollection(shapes: SpreadShape[]): Collection {
+  const features: Collection["features"] = [];
+  for (const shape of shapes) {
+    shape.rings.forEach((ring, k) => {
+      if (!ring) return;
+      features.push({
+        type: "Feature",
+        geometry: { type: "Polygon", coordinates: [ring] },
+        properties: { foyer: shape.foyer, part: k === 0 ? "bas" : "haut" },
+      });
+    });
+    shape.paths.forEach((path, k) => {
+      if (path.length < 2) return;
+      features.push({
+        type: "Feature",
+        geometry: { type: "LineString", coordinates: path },
+        properties: { foyer: shape.foyer, part: k === 0 ? "trajet-bas" : "trajet-haut" },
+      });
+    });
+  }
+  return { type: "FeatureCollection", features };
+}
+
 // The marker of a station, drawn once on a canvas: a white disc with a dark
 // ring and, for a station with a direction, an arrow pointing north that
 // MapLibre turns with the wind. Drawn at twice its size for sharp screens.
@@ -244,7 +287,45 @@ const SOURCES = {
   outlines: "vff-emprises",
   burned: "vff-surfaces",
   stations: "vff-stations",
+  spread: "vff-propagation",
 } as const;
+
+/**
+ * The estimated spread, under every layer of real data (burned areas,
+ * outlines, detections, foyers, wind and stations): light fills, the high
+ * estimate around the low one, and the dashed paths of the head of the fire.
+ */
+function spreadLayers(): LayerSpecification[] {
+  return [
+    {
+      id: "vff-propagation-fill",
+      type: "fill",
+      source: SOURCES.spread,
+      filter: ["in", ["get", "part"], ["literal", ["bas", "haut"]]],
+      paint: {
+        "fill-color": SPREAD_COLOUR,
+        "fill-opacity": ["match", ["get", "part"], "bas", 0.22, 0.1],
+      },
+    },
+    {
+      id: "vff-propagation-line",
+      type: "line",
+      source: SOURCES.spread,
+      filter: ["in", ["get", "part"], ["literal", ["bas", "haut"]]],
+      paint: {
+        "line-color": SPREAD_COLOUR,
+        "line-width": ["match", ["get", "part"], "bas", 1.5, 1],
+      },
+    },
+    {
+      id: "vff-propagation-trajet",
+      type: "line",
+      source: SOURCES.spread,
+      filter: ["in", ["get", "part"], ["literal", ["trajet-bas", "trajet-haut"]]],
+      paint: { "line-color": SPREAD_COLOUR, "line-width": 1.5, "line-dasharray": [2, 2] },
+    },
+  ];
+}
 
 function stationLayer(font: string[]): LayerSpecification {
   return {
@@ -428,6 +509,7 @@ export async function createMap(options: MapOptions): Promise<MapHandle> {
   const foyersById = new Map(data.foyers.map((f) => [f.id, f]));
   let windVisible = false;
   let stations: StationMarker[] = [];
+  let spread: SpreadShape[] = [];
 
   const start = options.view;
   let map: MapLibreMap;
@@ -474,6 +556,7 @@ export async function createMap(options: MapOptions): Promise<MapHandle> {
     map.addSource(SOURCES.detections, { type: "geojson", data: detectionsData });
     map.addSource(SOURCES.foyers, { type: "geojson", data: foyersData });
     map.addSource(SOURCES.stations, { type: "geojson", data: stationsCollection(stations) });
+    map.addSource(SOURCES.spread, { type: "geojson", data: spreadCollection(spread) });
     for (const [name, arrow] of [
       [STATION_IMAGE, true],
       [CALM_IMAGE, false],
@@ -481,6 +564,8 @@ export async function createMap(options: MapOptions): Promise<MapHandle> {
       const image = stationImage(arrow);
       if (image && !map.hasImage(name)) map.addImage(name, image, { pixelRatio: 2 });
     }
+    // The estimated spread first: every layer of real data is drawn above it.
+    for (const layer of spreadLayers()) map.addLayer(layer);
     for (const layer of layers(instant, font, selected)) {
       // The wind and its stations go above the burned areas, under the foyers
       // and detections.
@@ -633,6 +718,10 @@ export async function createMap(options: MapOptions): Promise<MapHandle> {
     setStations(next) {
       stations = next;
       void map.getSource<GeoJSONSource>(SOURCES.stations)?.setData(stationsCollection(next));
+    },
+    setSpread(next) {
+      spread = next;
+      void map.getSource<GeoJSONSource>(SOURCES.spread)?.setData(spreadCollection(next));
     },
     select(foyer, fly) {
       selected = foyer?.id ?? null;

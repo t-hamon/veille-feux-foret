@@ -21,6 +21,9 @@ web/lighthouse-report/
 web/.lighthouseci/
 web/preview.log
 
+# Captures written by npm run captures, to compare before and after a change
+docs/captures/build/
+
 # Local environment
 .env
 .env.*

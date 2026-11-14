@@ -82,6 +82,14 @@
               Vent mesuré : stations au sol de Météo-France, API Package Observations (Licence
               Ouverte, source Météo-France), mesures horaires des 7 derniers jours.
             </li>
+            <li>
+              Propagation estimée, non officielle : ordre de grandeur calculé par ce site pour les
+              foyers actifs, sur les 6 heures après la mise à jour, à partir du vent AROME prévu au
+              foyer. Avancée de 3 % (modèle de Valabre, Sauvagnargues-Lesage et al., International
+              Journal of Wildland Fire, 2001) à 8 % (Cruz et Alexander, Annals of Forest Science,
+              2019) du vent moyen à 10 m ; forme en ellipse du système canadien de prévision du
+              comportement des incendies de forêt (FBP, Forêts Canada, 1992, équation 79).
+            </li>
             <li>Fond de carte : voir les mentions affichées sous la carte.</li>
           </ul>
         </section>
@@ -104,6 +112,7 @@
             <label><input type="checkbox" id="couche-brule" /> Surfaces brûlées</label>
             <label><input type="checkbox" id="couche-vent" /> Vent</label>
             <label><input type="checkbox" id="couche-stations" /> Stations</label>
+            <label><input type="checkbox" id="couche-propagation" /> Propagation</label>
           </fieldset>
           <button type="button" id="vent-animation" class="button" hidden>
             Mettre le vent en pause
@@ -125,7 +134,8 @@
           <output id="instant-texte" for="instant"></output>
           <button type="button" id="maintenant" class="button">Dernière mise à jour</button>
           <p id="prevision" class="timeline-note">
-            Prévision : seul le vent change ; les foyers sont ceux de la dernière mise à jour.
+            Prévision : les foyers et les détections sont ceux de la dernière mise à jour ; seuls le
+            vent et la propagation estimée suivent l'heure choisie.
           </p>
         </div>
         <div class="legend" id="legende" aria-label="Légende"></div>
@@ -134,6 +144,12 @@
           class="legend"
           id="legende-stations"
           aria-label="Légende des stations Météo-France"
+          hidden
+        ></div>
+        <div
+          class="legend"
+          id="legende-propagation"
+          aria-label="Légende de la propagation estimée"
           hidden
         ></div>
         <p class="attribution" id="attribution"></p>

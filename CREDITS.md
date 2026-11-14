@@ -30,6 +30,20 @@ La note `SOURCES.md` de Flamap, lue le 11 octobre 2026, décrit des essais faits
 
 La note `docs/OMNI.md` de feux-france, lue le même jour, porte sur un autre outil de son auteur et n'a rien apporté au projet.
 
+### Méthode de propagation de carte-incendies
+
+Lue le 14 novembre 2026 (`public/index.html`, panaches de propagation), sans rien en reprendre : sa longueur d'avancée repose sur des constantes sans source publiée (0,5 km + 0,045 × vent par heure, plafonds de 2,5 km par heure et 12 km, évasement de 25°). La propagation estimée de ce site suit les références publiées ci-dessous.
+
+## Références de la propagation estimée
+
+Méthodes publiées, appliquées par le code de ce site (`web/src/spread.ts`) ; aucun texte, aucune figure ni aucune donnée n'en est reproduit, seules les relations sont utilisées et citées.
+
+| Référence | Ce qui est utilisé | Lecture |
+|---|---|---|
+| Cruz M.G., Alexander M.E. 2019. The 10% wind speed rule of thumb for estimating a wildfire's forward rate of spread in forests and shrublands. *Annals of Forest Science* 76:44 (© INRA et Springer-Verlag France) | borne haute : 8 % du vent moyen à 10 m, pente de la régression sur 118 feux (page 3) ; conditions d'emploi et limites (végétation sèche, forêts et garrigues, pas l'herbe, pas les pentes franches, feux suivis sur 1 à 3 heures) | lue en entier le 14 novembre 2026 |
+| Sauvagnargues-Lesage S., Dusserre G., Robert F., Dray G., Pearson D.W. 2001. Experimental validation in Mediterranean shrub fuels of seven wildland fire rate of spread models. *International Journal of Wildland Fire* 10:15-22 (version déposée sur HAL, hal-02938979) | borne basse : « modèle de Valabre », 3 % du vent moyen, enseigné à l'école des officiers sapeurs-pompiers de Valabre ; testé sur 71 brûlages dirigés de genêt purgatif en Lozère et dans les Pyrénées-Orientales | lue en entier le 14 novembre 2026 |
+| Forestry Canada Fire Danger Group 1992. Development and structure of the Canadian Forest Fire Behavior Prediction System. Information Report ST-X-3 (© Minister of Supply and Services Canada) | forme en ellipse : rapport longueur sur largeur en forêt, équation 79, plafonné à 9,7 ; hypothèse d'un vent de direction constante | section 8 (pages 39 à 46) lue en entier le 14 novembre 2026, avec la table des matières |
+
 ## Données géographiques embarquées
 
 | Fichier | Source | Licence |
