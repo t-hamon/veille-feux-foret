@@ -25,8 +25,39 @@ Ce fichier consigne les tests du projet et les résultats des dernières exécut
 | Déclencheur des mises à jour : appel à l'API de GitHub, secret absent, refus de GitHub, jeton absent des messages | Vitest | CI `web` |
 | Vent : lecture du fichier, particules, géométrie des traits et des flèches, légende et détail ; affichage, pause, mouvement réduit, frise, clic, fichier malformé ou absent | Vitest, Playwright, fichier de vent écrit par le pipeline | CI `web` et `e2e` |
 | Vent mesuré aux stations : lecture du fichier, heure de la mesure, station la plus proche, légende, détail d'une station, fiche d'un foyer ; affichage, frise, clic, fichier malformé ou absent | Vitest, Playwright, fichier des stations écrit par le pipeline | CI `web` et `e2e` |
+| Propagation estimée : rapport longueur sur largeur, trajet de la tête du feu, ellipse, heures couvertes ; couche, frise, fiche d'un foyer, légende, adresse, fichier malformé | Vitest, Playwright, météo des foyers écrite par le pipeline | CI `web` et `e2e` |
 
 Les contrôles de sécurité (gitleaks, semgrep, bandit, zizmor, OWASP ZAP) sont décrits dans [SECURITY.md](SECURITY.md).
+
+## Résultats du lot 2, partie 7 : propagation estimée
+
+Exécution du 14 novembre 2026 dans l'espace de développement, branche `lot-2/propagation` partie de `main` (753d0a4), Node.js 24.22.2, scénarios Chromium avec le Chrome for Testing 153.0.8010.12 préinstallé. Données de test : scénario `vent` (capture du 12 octobre 2026, mise à jour à 00:43:09 UTC, météo AROME des trois foyers écrite par le pipeline). Aucun de ces foyers n'est actif à cette mise à jour (dernière détection plus de 6 heures avant) : les tests et les captures qui demandent un foyer actif servent le même `foyers.geojson` avec la propriété `active` mise à vrai, ce qui est dit dans chacun d'eux.
+
+Sources lues en entier avant le code, le 14 novembre 2026 : Cruz et Alexander 2019, Sauvagnargues-Lesage et al. 2001 (version HAL), section 8 du rapport FBP ST-X-3 (1992) ; voir CREDITS.md. Lus aussi, pour le signalement de l'humidité qui n'est pas dans cette partie : Van Wagner 1977 (FFMC horaire, PS-X-69), en entier.
+
+| Test | Résultat |
+|---|---|
+| Prettier, ESLint, tsc | aucun problème |
+| Vitest | 156 tests réussis dans 12 fichiers, dont 14 nouveaux. Calcul (`spread.test.ts`) : 3 % et 8 % sur 6 heures ; équation 79 du FBP (1 à 0 km/h, 3,835 à 30 km/h, plafond 9,729) ; déplacement d'un point ; découpage aux heures rondes avec lecture linéaire entre les valeurs horaires ; direction moyennée comme un vecteur (nord puis est donnent nord-est) ; vent absent ou manquant ; trajet sous le vent de 3,2 km pour 8 % de 20 km/h pendant 2 heures ; ellipse du foyer à la tête, largeur au rapport donné ; estimation sur la météo réelle du foyer 1 égale à 3 % et 8 % du vent intégré ; rien sur les heures passées ni après 6 heures. Affichage (`ui.test.ts`) : fiche du foyer avec l'avancée, la direction, la largeur, l'heure affichée, le vent, la méthode et les limites ; les 4 cas sans estimation ; légende dans chaque état ; mention de la source AROME une seule fois ; place de la section dans la fiche, hors des annonces des lecteurs d'écran. Adresse (`state.test.ts`) : `propagation=1` lu, écrit, valeur piégée ignorée |
+| Couverture | `spread.ts` et `ui.ts` : 100 % des lignes |
+| Build et poids | `index` 19,9 ko gzip (17,8 avant), `map` 6,5 ko gzip, CSS 2,7 ko gzip ; MapLibre inchangé (297,4 ko gzip) ; tous sous leur budget |
+| `npm audit` | aucune vulnérabilité |
+| Playwright Chromium desktop et mobile, build servi par wrangler | 157 scénarios réussis, 1 ignoré volontairement (navigation clavier sur mobile) ; dont 7 nouveaux par profil : case décochée au départ, 6 heures de prévision ajoutées à la frise par la seule couche, légende, mention et adresse, puis retour à 168 heures ; rien pour des foyers non actifs ; foyers actifs : fiche (1,4 à 3,7 km en 6 heures, ouest-nord-ouest, 298°, largeur 1,1 à 2,9 km, vent moyen 8 km/h), légende à la dernière heure (08:00 à Paris), retour au passé ; arrêt à 6 heures quand le vent va plus loin ; adresse partagée sur une heure de prévision ; météo malformée ; aucune violation WCAG 2.2 AA relevée par axe |
+| Stabilité des 7 nouveaux scénarios | 70 exécutions sur 70 réussies (5 répétitions, deux profils) |
+| Pipeline et outils CI | non modifiés |
+
+Choix du mainteneur avant le code, le 14 novembre 2026 : fourchette de 3 à 8 % (et non 10 %, arrondi de Cruz et Alexander pour le calcul mental), 6 heures, foyers actifs, ellipse selon le vent, case « Propagation » décochée par défaut, couloir qui grandit avec la frise, jamais au-dessus des données réelles. Le signalement de l'humidité de la végétation, l'herbe, le relief, la végétation française et le calage sur des feux documentés sont reportés à l'étude B.
+
+Défaut corrigé avant la livraison : la première version prenait pour chaque morceau de temps la valeur horaire la plus proche de son milieu, ce qui, pour une heure entière, prenait la valeur de l'heure suivante (arrondi d'une demi-heure vers le haut). Le vent est désormais lu linéairement entre les valeurs horaires, chaque morceau prenant la moyenne de ses deux bouts. La note de la frise sur la prévision parle aussi de la propagation estimée.
+
+Captures dans `docs/captures/lot-2/`, prises dans l'espace de développement par Playwright (Chromium), fond uni gris et police de substitution comme pour la partie 6c, foyers marqués actifs : `propagation-carte-bureau.png` et `propagation-carte-mobile.png` (foyer 1 à 08:00, dernière heure de la frise), `propagation-fiche-bureau.png` et `propagation-fiche-mobile.png` (fiche du foyer 1 ; le scénario `vent` n'a pas de fichier des stations, d'où « Mesures des stations indisponibles »), `propagation-legende-bureau.png`.
+
+| Non exécuté | Raison | Quand |
+|---|---|---|
+| Playwright avec le Chromium de la version 1.64.1, Firefox et WebKit dans l'espace de développement | non téléchargeables | poste Windows ; CI de la PR |
+| Affichage avec le vrai fond de carte | fonds de carte injoignables depuis l'espace de développement | poste Windows (`npm run captures` ne montre pas la propagation : ses données de test n'ont aucun foyer actif) ; après la fusion, sur le site quand un foyer est actif |
+| Lighthouse, gitleaks, semgrep | exécutés par la CI | CI de la PR |
+| zizmor | aucun workflow modifié | CI de la PR |
 
 ## Résultats du lot 2, partie 6c : vent mesuré aux stations sur la carte
 
