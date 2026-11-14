@@ -56,6 +56,8 @@ Captures dans `docs/captures/lot-2/`, prises dans l'espace de développement par
 
 Poste Windows du mainteneur, 12 novembre 2026 vers 22:20 (heure de Paris), première version de la branche (stations affichées avec la couche Vent, avant la case « Stations ») : `npm run captures` avec le vrai fond Plan IGN et sa police. Sur `desktop-vent-stations.png`, les pastilles, les flèches et les vitesses de Provence sont lisibles, et des noms du fond de carte restent visibles à côté des stations (Montpellier, Arles, Manosque, Brignoles) ; une seule capture ne permet pas de dire si d'autres noms sont masqués.
 
+Poste Windows du mainteneur, 13 novembre 2026 vers 09:05 (heure de Paris), version finale de la branche (patch v2) appliquée sur `main` par `git am`, Python 3.12.10 : pytest du pipeline, 310 tests réussis, couverture 99 % ; Vitest, 142 tests réussis ; Playwright sur les 5 profils (Chromium, Firefox et WebKit, desktop et mobile), 356 scénarios réussis, 3 ignorés volontairement (navigation clavier sur mobile et WebKit), 1 échec : « plays up to the last update, then through the forecast » sur chromium-desktop, scénario de la PR n°35 que cette branche ne modifie pas, a dépassé le délai de 30 secondes à la fermeture du navigateur après 42,8 s, contre 9,6 à 15,7 s sur les autres profils, avec des messages de ralentissement du rendu WebGL (« GPU stall due to ReadPixels ») dans le journal du navigateur. Relancé seul le 14 novembre vers 09:25, 5 fois de suite : 5 réussis, en 9,6 à 11,1 s.
+
 | Non exécuté | Raison | Quand |
 |---|---|---|
 | Playwright avec le Chromium de la version 1.64.1, Firefox et WebKit dans l'espace de développement | non téléchargeables | poste Windows ; CI de la PR |
