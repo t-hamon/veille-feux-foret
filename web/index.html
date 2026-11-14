@@ -78,6 +78,10 @@
               <a href="https://open-meteo.com/">Open-Meteo.com</a> (licence CC BY 4.0). Les heures
               passées sont des prévisions archivées du modèle, pas des mesures.
             </li>
+            <li>
+              Vent mesuré : stations au sol de Météo-France, API Package Observations (Licence
+              Ouverte, source Météo-France), mesures horaires des 7 derniers jours.
+            </li>
             <li>Fond de carte : voir les mentions affichées sous la carte.</li>
           </ul>
         </section>
@@ -99,6 +103,7 @@
             <label><input type="checkbox" id="couche-detections" checked /> Détections</label>
             <label><input type="checkbox" id="couche-brule" /> Surfaces brûlées</label>
             <label><input type="checkbox" id="couche-vent" /> Vent</label>
+            <label><input type="checkbox" id="couche-stations" /> Stations</label>
           </fieldset>
           <button type="button" id="vent-animation" class="button" hidden>
             Mettre le vent en pause
@@ -125,6 +130,12 @@
         </div>
         <div class="legend" id="legende" aria-label="Légende"></div>
         <div class="legend" id="legende-vent" aria-label="Légende du vent" hidden></div>
+        <div
+          class="legend"
+          id="legende-stations"
+          aria-label="Légende des stations Météo-France"
+          hidden
+        ></div>
         <p class="attribution" id="attribution"></p>
       </section>
     </div>

@@ -16,24 +16,38 @@ import {
 } from "./data";
 import { type FireWeatherFile, distanceKm, parseFireWeather, weatherHour } from "./fireweather";
 import * as format from "./format";
-import type { MapHandle, Picked } from "./map";
+import type { MapHandle, Picked, StationMarker } from "./map";
 import { AGE_COLOURS, WIND_COLOURS } from "./palette";
 import { type Basemap, type SharedState, type View, formatFragment, parseFragment } from "./share";
+import {
+  NEAREST_MAX_KM,
+  type StationsFile,
+  measuredHour,
+  nearestStation,
+  parseStations,
+  sampleAtStation,
+  stationsAt,
+} from "./stations";
 import { LABELS, applyTheme, loadPreference, nextPreference, savePreference } from "./theme";
 import { type Range, fireInstant, instantAt, isForecast, rangeOf, stepOf } from "./timeline";
 import {
+  type FoyerStationModel,
   type FoyerWeatherModel,
+  type StationPoint,
+  type StationsLegendModel,
   type Selection,
   type WindLegendModel,
   type WindPoint,
   markSelectedFoyer,
   renderAttribution,
   renderDetail,
+  renderFoyerStation,
   renderFoyerWeather,
   renderFoyers,
   renderLegend,
   renderStatus,
   renderSummary,
+  renderStationsLegend,
   renderWindLegend,
 } from "./ui";
 import { type WindField, hourAt, hourTime, parseWind, sampleAt } from "./wind";
@@ -108,6 +122,7 @@ interface PageState {
   burnedVisible: boolean;
   windVisible: boolean;
   windAnimated: boolean;
+  stationsVisible: boolean;
 }
 
 // Visitors who ask for reduced motion get still arrows; they can still start
@@ -123,6 +138,7 @@ const state: PageState = {
   burnedVisible: shared.burned ?? false,
   windVisible: shared.wind ?? false,
   windAnimated: !reducedMotion,
+  stationsVisible: shared.stations ?? false,
 };
 
 let map: MapHandle | null = null;
@@ -132,6 +148,8 @@ let wind: LoadResult<WindField> | null = null;
 let windRejected = 0;
 let fireWeather: LoadResult<FireWeatherFile> | null = null;
 let fireWeatherRejected = 0;
+let stationsData: LoadResult<StationsFile> | null = null;
+let stationsRejected = 0;
 let refreshStatus = (): void => undefined;
 // Set up once the status file is there.
 let updateRange = (): void => undefined;
@@ -156,6 +174,7 @@ function updateAddress(): void {
   if (state.selection?.kind === "foyer") next.foyer = state.selection.foyer.id;
   if (state.burnedVisible) next.burned = true;
   if (state.windVisible) next.wind = true;
+  if (state.stationsVisible) next.stations = true;
   const fragment = formatFragment(next);
   const url = `${window.location.pathname}${window.location.search}${fragment}`;
   window.history.replaceState(null, "", url);
@@ -226,7 +245,7 @@ async function start(): Promise<void> {
   refreshStatus = () => {
     renderStatus(panel.status, {
       status,
-      rejected: rejected + burnedRejected + windRejected + fireWeatherRejected,
+      rejected: rejected + burnedRejected + windRejected + fireWeatherRejected + stationsRejected,
       now: new Date(),
       missingFiles,
     });
@@ -253,7 +272,9 @@ async function start(): Promise<void> {
     updateAddress();
     if (selection?.kind === "foyer") {
       refreshFoyerWeather();
+      refreshFoyerStation();
       void loadFireWeather();
+      void loadStations();
     }
   }
 
@@ -533,9 +554,118 @@ function refreshFoyerWeather(): void {
   if (container) renderFoyerWeather(container, foyerWeatherModel(state.selection.foyer));
 }
 
-/** The wind at a point and the weather of a fire follow the instant of the timeline. */
+// ------------------------------------------------ the measured wind
+
+let stationsLoading = false;
+async function loadStations(): Promise<void> {
+  if (stationsData?.state === "ok" || stationsLoading) return;
+  stationsLoading = true;
+  refreshFoyerStation();
+  const result = await loadFile("stations", parseStations, fetcher);
+  stationsLoading = false;
+  if (result.state === "ok") {
+    stationsData = { state: "ok", value: result.value.file };
+    if (result.value.rejected > 0) {
+      stationsRejected = result.value.rejected;
+      refreshStatus();
+    }
+  } else {
+    stationsData = result;
+  }
+  refreshWind();
+  renderStationsControls();
+}
+
+/** Instant shown, and whether it is a forecast hour, without measurements. */
+function measuredInstant(): { instant: number | null; forecast: boolean } {
+  const instant = state.instant ?? state.range?.now ?? null;
+  const forecast = instant !== null && state.range !== null && isForecast(state.range, instant);
+  return { instant, forecast };
+}
+
+function stationMarkers(): StationMarker[] {
+  const { instant, forecast } = measuredInstant();
+  if (!state.stationsVisible || stationsData?.state !== "ok" || instant === null || forecast) {
+    return [];
+  }
+  const file = stationsData.value;
+  return stationsAt(file, instant).map((s) => ({
+    index: s.index,
+    lat: s.station.lat,
+    lon: s.station.lon,
+    speed: s.speed,
+    towards: s.from === null ? null : (s.from + 180) % 360,
+  }));
+}
+
+function stationsLegendModel(): StationsLegendModel {
+  if (stationsData === null || stationsLoading) return { state: "loading" };
+  if (stationsData.state !== "ok") {
+    return {
+      state: "unavailable",
+      reason: stationsData.state === "missing" ? "non publiées" : stationsData.message,
+    };
+  }
+  const { instant, forecast } = measuredInstant();
+  if (forecast) return { state: "forecast" };
+  const hour = instant === null ? null : measuredHour(stationsData.value, instant);
+  const start = stationsData.value.start;
+  return {
+    state: "ok",
+    time: hour === null || start === null ? null : new Date((start + hour * 3600) * 1000),
+    count: instant === null ? 0 : stationsAt(stationsData.value, instant).length,
+  };
+}
+
+function stationPoint(index: number): StationPoint | null {
+  if (stationsData?.state !== "ok") return null;
+  const station = stationsData.value.stations[index];
+  if (!station) return null;
+  const { instant, forecast } = measuredInstant();
+  return {
+    kind: "station",
+    index,
+    station,
+    sample:
+      forecast || instant === null ? null : sampleAtStation(stationsData.value, index, instant),
+    forecast,
+  };
+}
+
+function foyerStationModel(foyer: Foyer): FoyerStationModel {
+  if (stationsData === null || stationsLoading) return { state: "loading" };
+  if (stationsData.state !== "ok") {
+    return {
+      state: "unavailable",
+      reason: stationsData.state === "missing" ? "non publiées" : stationsData.message,
+    };
+  }
+  const { instant, forecast } = measuredInstant();
+  if (forecast) return { state: "forecast" };
+  const found =
+    instant === null ? null : nearestStation(stationsData.value, foyer.lat, foyer.lon, instant);
+  return found ? { state: "ok", ...found } : { state: "none", maxKm: NEAREST_MAX_KM };
+}
+
+/** The wind measured near a fire follows the instant of the timeline. */
+function refreshFoyerStation(): void {
+  if (state.selection?.kind !== "foyer") return;
+  const container = panel.detail.querySelector<HTMLElement>(".foyer-station");
+  if (container) renderFoyerStation(container, foyerStationModel(state.selection.foyer));
+}
+
+/** The wind at a point or a station and the weather of a fire follow the timeline. */
 function refreshDetail(): void {
-  if (state.selection?.kind === "foyer") refreshFoyerWeather();
+  if (state.selection?.kind === "foyer") {
+    refreshFoyerWeather();
+    refreshFoyerStation();
+    return;
+  }
+  if (state.selection?.kind === "station") {
+    state.selection = stationPoint(state.selection.index);
+    renderDetail(panel.detail, state.selection, new Date());
+    return;
+  }
   if (state.selection?.kind !== "wind") return;
   state.selection = windPoint(state.selection.lat, state.selection.lon);
   renderDetail(panel.detail, state.selection, new Date());
@@ -548,7 +678,6 @@ function renderWindControls(): void {
   windLegend.hidden = !state.windVisible;
   windButton.hidden = !state.windVisible || wind?.state !== "ok";
   windButton.textContent = state.windAnimated ? "Mettre le vent en pause" : "Animer le vent";
-  renderAttribution(controls.attribution, state.basemap, state.windVisible);
   let model: WindLegendModel;
   if (wind === null || (wind.state !== "ok" && state.windVisible && windLoading)) {
     model = { state: "loading" };
@@ -563,10 +692,20 @@ function renderWindControls(): void {
   renderWindLegend(windLegend, model, WIND_COLOURS);
 }
 
+const stationsLegend = $("#legende-stations");
+
+function renderStationsControls(): void {
+  stationsLegend.hidden = !state.stationsVisible;
+  renderAttribution(controls.attribution, state.basemap, state.windVisible, state.stationsVisible);
+  if (state.stationsVisible) renderStationsLegend(stationsLegend, stationsLegendModel());
+}
+
 function refreshWind(): void {
   const current = windHour();
   map?.setWind(current?.field ?? null, current?.hour ?? null);
+  map?.setStations(stationMarkers());
   if (state.windVisible) renderWindControls();
+  renderStationsControls();
   refreshDetail();
 }
 
@@ -601,12 +740,13 @@ const controls = {
   detections: $("#couche-detections", HTMLInputElement),
   burned: $("#couche-brule", HTMLInputElement),
   wind: $("#couche-vent", HTMLInputElement),
+  stations: $("#couche-stations", HTMLInputElement),
 };
 
 function showBasemap(value: Basemap): void {
   state.basemap = value;
   controls.basemap.value = value;
-  renderAttribution(controls.attribution, value, state.windVisible);
+  renderAttribution(controls.attribution, value, state.windVisible, state.stationsVisible);
 }
 
 // The controls work from the first render, before the data and the map code
@@ -646,7 +786,15 @@ function setupControls(): void {
     updateRange();
     renderWindControls();
     updateAddress();
+    refreshWind();
     if (state.windVisible) void loadWind();
+  });
+  controls.stations.checked = state.stationsVisible;
+  controls.stations.addEventListener("change", () => {
+    state.stationsVisible = controls.stations.checked;
+    updateAddress();
+    refreshWind();
+    if (state.stationsVisible) void loadStations();
   });
   windButton.addEventListener("click", () => {
     state.windAnimated = !state.windAnimated;
@@ -656,6 +804,10 @@ function setupControls(): void {
   if (state.windVisible) {
     renderWindControls();
     void loadWind();
+  }
+  if (state.stationsVisible) {
+    renderStationsControls();
+    void loadStations();
   }
 }
 
@@ -683,7 +835,8 @@ async function startMap(start: MapStart): Promise<void> {
           : Math.floor(Date.now() / 1000),
       data: { detections: start.detections, foyers: start.foyers, outlines: start.outlines },
       onPick: (picked: Picked | null) => {
-        if (picked?.kind !== "wind") start.select(picked, false);
+        if (picked?.kind === "station") start.select(stationPoint(picked.index), false);
+        else if (picked?.kind !== "wind") start.select(picked, false);
         // The wind at a point, once the wind file is there.
         else start.select(wind?.state === "ok" ? windPoint(picked.lat, picked.lon) : null, false);
       },

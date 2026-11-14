@@ -12,6 +12,7 @@ export const DATA_FILES = {
   summary: "bilan.json",
   wind: "vent.json",
   fireWeather: "meteo-foyers.json",
+  stations: "stations-vent.json",
 } as const;
 
 export type DataFile = keyof typeof DATA_FILES;

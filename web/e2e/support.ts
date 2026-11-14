@@ -5,7 +5,9 @@
 // request leaving the local build fails the test. The data files are those the
 // real pipeline writes from a capture, for one scenario (e2e/fixtures/<scenario>/,
 // produced by tools/build_web_fixtures.py): the capture of 3 October 2026, or,
-// for the "vent" scenario, the capture of 12 October 2026 with the wind.
+// for the "vent" scenario, the capture of 12 October 2026 with the wind, or,
+// for the "stations" scenario, the capture of 11 November 2026 with the wind
+// measured at the Météo-France stations.
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -14,9 +16,10 @@ import { test as base, expect, type Page, type Route } from "@playwright/test";
 export const FIXTURES = join(import.meta.dirname, "fixtures");
 export const GENERATED_AT = new Date("2026-10-03T11:28:00Z");
 export const WIND_GENERATED_AT = new Date("2026-10-12T00:43:09Z");
+export const STATIONS_GENERATED_AT = new Date("2026-11-11T23:22:44Z");
 
 export type Scenario =
-  "complet" | "firms-partiel" | "firms-en-panne" | "effis-en-panne" | "vent" | "vide";
+  "complet" | "firms-partiel" | "firms-en-panne" | "effis-en-panne" | "vent" | "stations" | "vide";
 
 const MAP_HOSTS = ["https://data.geopf.fr", "https://tiles.openfreemap.org"];
 
@@ -155,7 +158,12 @@ export const test = base.extend<Fixtures>({
   page: async ({ page, scenario }, use) => {
     // The clock is set 20 minutes after the data was generated, so the page
     // sees fresh data unless a test says otherwise.
-    const generated = scenario === "vent" ? WIND_GENERATED_AT : GENERATED_AT;
+    const generated =
+      scenario === "vent"
+        ? WIND_GENERATED_AT
+        : scenario === "stations"
+          ? STATIONS_GENERATED_AT
+          : GENERATED_AT;
     await page.clock.setFixedTime(new Date(generated.getTime() + 20 * 60_000));
     await use(page);
   },

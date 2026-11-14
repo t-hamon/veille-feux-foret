@@ -37,6 +37,8 @@ export type LayerGroup = "detections" | "foyers" | "burned";
 
 export type Picked =
   | { kind: "foyer"; foyer: Foyer }
+  /** A Météo-France station, by its index in the stations file. */
+  | { kind: "station"; index: number }
   | { kind: "detection"; detection: Detection }
   | { kind: "burned"; area: BurnedArea }
   | { kind: "wind"; lat: number; lon: number };
@@ -63,6 +65,17 @@ export interface MapOptions {
   onBasemapReady: (basemap: Basemap) => void;
 }
 
+/** A station shown with the wind it measured at the hour of the instant. */
+export interface StationMarker {
+  index: number;
+  lat: number;
+  lon: number;
+  /** Mean wind, km/h; null when only a gust was measured. */
+  speed: number | null;
+  /** Direction the wind goes to, degrees; null for a calm or no direction. */
+  towards: number | null;
+}
+
 export interface MapHandle {
   setInstant(instant: number): void;
   setBasemap(basemap: Basemap): void;
@@ -72,6 +85,8 @@ export interface MapHandle {
   setWind(field: WindField | null, hour: number | null): void;
   setWindVisible(visible: boolean): void;
   setWindAnimated(animated: boolean): void;
+  /** Stations shown, with the wind layer only; an empty list hides them. */
+  setStations(stations: StationMarker[]): void;
   select(foyer: Foyer | null, fly: boolean): void;
   resize(): void;
 }
@@ -165,6 +180,62 @@ function burnedCollection(areas: BurnedArea[]): Collection {
   };
 }
 
+function stationsCollection(stations: StationMarker[]): Collection {
+  return {
+    type: "FeatureCollection",
+    features: stations.map((s) => ({
+      type: "Feature",
+      id: s.index,
+      geometry: { type: "Point", coordinates: [s.lon, s.lat] },
+      properties: {
+        i: s.index,
+        label: s.speed === null ? "" : `${String(s.speed)} km/h`,
+        // MapLibre has no null in its expressions: -1 for no direction.
+        towards: s.towards ?? -1,
+      },
+    })),
+  };
+}
+
+// The marker of a station, drawn once on a canvas: a white disc with a dark
+// ring and, for a station with a direction, an arrow pointing north that
+// MapLibre turns with the wind. Drawn at twice its size for sharp screens.
+const STATION_IMAGE = "vff-station";
+const CALM_IMAGE = "vff-station-calme";
+const STATION_FILL = "#ffffff";
+const STATION_INK = "#1f1c19";
+
+function stationImage(arrow: boolean): ImageData | null {
+  const size = 50;
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = size;
+  const context = canvas.getContext("2d");
+  if (!context) return null;
+  context.beginPath();
+  context.arc(25, 25, 22, 0, 2 * Math.PI);
+  context.globalAlpha = 0.9;
+  context.fillStyle = STATION_FILL;
+  context.fill();
+  context.globalAlpha = 1;
+  context.lineWidth = 3;
+  context.strokeStyle = STATION_INK;
+  context.stroke();
+  if (arrow) {
+    context.fillStyle = STATION_INK;
+    context.beginPath();
+    context.moveTo(25, 9);
+    context.lineTo(34, 22);
+    context.lineTo(28, 22);
+    context.lineTo(28, 41);
+    context.lineTo(22, 41);
+    context.lineTo(22, 22);
+    context.lineTo(16, 22);
+    context.closePath();
+    context.fill();
+  }
+  return context.getImageData(0, 0, size, size);
+}
+
 // ---------------------------------------------------------------- the layers
 
 const SOURCES = {
@@ -172,7 +243,38 @@ const SOURCES = {
   foyers: "vff-foyers",
   outlines: "vff-emprises",
   burned: "vff-surfaces",
+  stations: "vff-stations",
 } as const;
+
+function stationLayer(font: string[]): LayerSpecification {
+  return {
+    // A station that would overlap one already drawn is left out, and its
+    // speed when only the speed would overlap: at a small scale, part of the
+    // stations only, all of them when zooming in.
+    id: "vff-stations",
+    type: "symbol",
+    source: SOURCES.stations,
+    layout: {
+      // Placed in the order of the file, that of the station numbers.
+      "symbol-sort-key": ["get", "i"],
+      "icon-image": ["case", [">=", ["get", "towards"], 0], STATION_IMAGE, CALM_IMAGE],
+      "icon-rotate": ["max", ["get", "towards"], 0],
+      "icon-rotation-alignment": "map",
+      "icon-padding": 1,
+      "text-field": ["get", "label"],
+      "text-font": font,
+      "text-size": 11,
+      "text-anchor": "left",
+      "text-offset": [1.3, 0],
+      "text-optional": true,
+    },
+    paint: {
+      "text-color": STATION_INK,
+      "text-halo-color": STATION_FILL,
+      "text-halo-width": 1.5,
+    },
+  };
+}
 
 const GROUP_LAYERS: Record<LayerGroup, string[]> = {
   burned: ["vff-surfaces-fill", "vff-surfaces-line", "vff-surfaces-line-nrt"],
@@ -325,6 +427,7 @@ export async function createMap(options: MapOptions): Promise<MapHandle> {
   const visible: Record<LayerGroup, boolean> = { detections: true, foyers: true, burned: false };
   const foyersById = new Map(data.foyers.map((f) => [f.id, f]));
   let windVisible = false;
+  let stations: StationMarker[] = [];
 
   const start = options.view;
   let map: MapLibreMap;
@@ -370,9 +473,21 @@ export async function createMap(options: MapOptions): Promise<MapHandle> {
     map.addSource(SOURCES.outlines, { type: "geojson", data: outlinesData });
     map.addSource(SOURCES.detections, { type: "geojson", data: detectionsData });
     map.addSource(SOURCES.foyers, { type: "geojson", data: foyersData });
+    map.addSource(SOURCES.stations, { type: "geojson", data: stationsCollection(stations) });
+    for (const [name, arrow] of [
+      [STATION_IMAGE, true],
+      [CALM_IMAGE, false],
+    ] as const) {
+      const image = stationImage(arrow);
+      if (image && !map.hasImage(name)) map.addImage(name, image, { pixelRatio: 2 });
+    }
     for (const layer of layers(instant, font, selected)) {
-      // The wind goes above the burned areas, under the foyers and detections.
-      if (layer.id === "vff-emprises-fill") map.addLayer(wind.layer);
+      // The wind and its stations go above the burned areas, under the foyers
+      // and detections.
+      if (layer.id === "vff-emprises-fill") {
+        map.addLayer(wind.layer);
+        map.addLayer(stationLayer(font));
+      }
       map.addLayer(layer);
     }
     for (const group of Object.keys(visible) as LayerGroup[]) applyVisibility(group);
@@ -416,7 +531,7 @@ export async function createMap(options: MapOptions): Promise<MapHandle> {
     options.onMove({ zoom: map.getZoom(), lat: center.lat, lon: center.lng });
   });
 
-  const clickable = ["vff-foyers", "vff-detections", "vff-surfaces-fill"];
+  const clickable = ["vff-foyers", "vff-stations", "vff-detections", "vff-surfaces-fill"];
 
   function pick(features: MapGeoJSONFeature[]): Picked | null {
     for (const layer of clickable) {
@@ -426,6 +541,8 @@ export async function createMap(options: MapOptions): Promise<MapHandle> {
       if (layer === "vff-foyers") {
         const foyer = foyersById.get(Number(props["id"]));
         if (foyer) return { kind: "foyer", foyer };
+      } else if (layer === "vff-stations") {
+        return { kind: "station", index: Number(props["i"]) };
       } else if (layer === "vff-detections") {
         const detection = data.detections[Number(props["i"])];
         if (detection) return { kind: "detection", detection };
@@ -512,6 +629,10 @@ export async function createMap(options: MapOptions): Promise<MapHandle> {
     },
     setWindAnimated(value) {
       wind.setAnimated(value);
+    },
+    setStations(next) {
+      stations = next;
+      void map.getSource<GeoJSONSource>(SOURCES.stations)?.setData(stationsCollection(next));
     },
     select(foyer, fly) {
       selected = foyer?.id ?? null;

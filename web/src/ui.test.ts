@@ -5,6 +5,8 @@ import completEtat from "../e2e/fixtures/complet/etat.json?raw";
 import completFoyers from "../e2e/fixtures/complet/foyers.geojson?raw";
 import completSurfaces from "../e2e/fixtures/complet/surfaces-brulees.geojson?raw";
 import panneEtat from "../e2e/fixtures/firms-en-panne/etat.json?raw";
+import stationsEtat from "../e2e/fixtures/stations/etat.json?raw";
+import stationsFile from "../e2e/fixtures/stations/stations-vent.json?raw";
 import ventEtat from "../e2e/fixtures/vent/etat.json?raw";
 import ventMeteo from "../e2e/fixtures/vent/meteo-foyers.json?raw";
 import {
@@ -17,13 +19,16 @@ import {
 } from "./data";
 import { parseFireWeather } from "./fireweather";
 import { AGE_COLOURS, WIND_COLOURS } from "./palette";
+import { parseStations, sampleAtStation, stationsAt } from "./stations";
 import {
   markSelectedFoyer,
   renderAttribution,
   renderDetail,
+  renderFoyerStation,
   renderFoyerWeather,
   renderFoyers,
   renderLegend,
+  renderStationsLegend,
   renderStatus,
   renderSummary,
   renderWindLegend,
@@ -120,6 +125,24 @@ describe("status", () => {
     });
     expect(box.textContent).toContain("1 source en échec. Les données affichées");
     expect(box.textContent).not.toContain("Sources concernées : .");
+  });
+
+  it("names the stations of Météo-France when they fail", () => {
+    const value = parseStatus(JSON.parse(stationsEtat));
+    expect(value.sources.find((s) => s.id === "meteofrance_stations")?.count).toBe(726);
+    const failed = value.sources.map((s) =>
+      s.id === "meteofrance_stations" ? { ...s, ok: false, error: "jeton refusé" } : s,
+    );
+    renderStatus(box, {
+      status: { state: "ok", value: { ...value, sources: failed } },
+      rejected: 0,
+      now: new Date(value.generatedAt.getTime() + 5 * 60_000),
+      missingFiles: [],
+    });
+    expect(box.textContent).toContain("1 source en échec");
+    expect(box.textContent).toContain(
+      "Sources concernées : Vent mesuré aux stations (Météo-France).",
+    );
   });
 
   it("says when nothing could be read, and counts rejected entries", () => {
@@ -243,6 +266,18 @@ describe("summary and captions", () => {
     );
     const link = [...box.querySelectorAll("a")].find((a) => a.textContent === "Open-Meteo.com");
     expect(link?.getAttribute("href")).toBe("https://open-meteo.com/");
+  });
+
+  it("credits the stations of Météo-France when they are shown", () => {
+    renderAttribution(box, "osm", false, true);
+    expect(box.textContent).toContain(
+      "| Surfaces brûlées EFFIS | Vent mesuré Météo-France | MapLibre",
+    );
+    expect(box.textContent).not.toContain("Open-Meteo");
+    renderAttribution(box, "osm", true, true);
+    expect(box.textContent).toContain("Open-Meteo.com | Vent mesuré Météo-France | MapLibre");
+    renderAttribution(box, "osm", true);
+    expect(box.textContent).not.toContain("Vent mesuré");
   });
 
   it("draws one legend entry per age class", () => {
@@ -419,5 +454,152 @@ describe("wind", () => {
       WIND_COLOURS,
     );
     expect(box.textContent).toContain("Pas de donnée de vent pour l'instant affiché.");
+  });
+});
+
+describe("wind measured at the stations", () => {
+  const { file } = parseStations(JSON.parse(stationsFile));
+  // 11 November 2026 at 23:00 UTC, 00:00 in Paris.
+  const latest = Date.UTC(2026, 10, 11, 23) / 1000;
+  const arbent = file.stations[0];
+  if (!arbent) throw new Error("no station");
+  const point = { kind: "station" as const, index: 0, station: arbent, forecast: false };
+  const calm = stationsAt(file, latest).find((s) => s.station.name === "LURCY-LEVIS SA");
+  if (!calm) throw new Error("no calm station");
+
+  it("details a station and its measurement, with its source", () => {
+    renderDetail(box, { ...point, sample: sampleAtStation(file, 0, latest) }, later(0));
+    expect(box.querySelector("h3")?.textContent).toBe("Station Météo-France : ARBENT");
+    const text = box.textContent;
+    expect(text).toContain("Position46,2782° N, 5,6690° E");
+    expect(text).toContain("Altitude534 m");
+    expect(text).toContain("Heure de la mesure12 novembre 2026 à 00:00");
+    expect(text).toContain("Vent moyen sur 10 min, à 10 m3 km/h");
+    expect(text).toContain("Directionde est-nord-est (70°)");
+    expect(text).toContain("Rafale maximale de l'heure9 km/h");
+    expect(text).toContain("SourceMétéo-France, mesures horaires des stations au sol");
+    expect(text).toContain("la dernière faite à l'instant affiché, à l'heure ronde");
+  });
+
+  it("says when a station has no measurement, or no name, or no altitude", () => {
+    renderDetail(box, { ...point, sample: null }, later(0));
+    expect(box.textContent).toContain("Pas de mesure de cette station pour l'heure affichée.");
+    expect(box.textContent).not.toContain("Heure de la mesure");
+    renderDetail(box, { ...point, sample: null, forecast: true }, later(0));
+    expect(box.textContent).toContain("Pas de mesure pour une heure de prévision.");
+    const unnamed = { ...arbent, name: null, altitude: null };
+    renderDetail(box, { ...point, station: unnamed, sample: null }, later(0));
+    expect(box.querySelector("h3")?.textContent).toBe("Station Météo-France : station 01014002");
+    expect(box.textContent).not.toContain("Altitude");
+  });
+
+  it("gives a calm, and a measurement without values, as such", () => {
+    renderDetail(box, { ...point, station: calm.station, sample: calm }, later(0));
+    expect(box.textContent).toContain("Vent moyen sur 10 min, à 10 m0 km/h");
+    expect(box.textContent).toContain("Directionvent calme");
+    expect(box.textContent).toContain("Rafale maximale de l'heure5 km/h");
+    const empty = { ...calm, speed: null, gusts: null };
+    renderDetail(box, { ...point, station: calm.station, sample: empty }, later(0));
+    expect(box.textContent).toContain("Vent moyen sur 10 min, à 10 msans donnée");
+    expect(box.textContent).toContain("Directionsans donnée");
+    expect(box.textContent).toContain("Rafale maximale de l'heuresans donnée");
+  });
+
+  it("has its place in the sheet of a fire, out of the live announcements", () => {
+    const foyer = foyers[0];
+    if (!foyer) throw new Error("no foyer");
+    renderDetail(box, { kind: "foyer", foyer }, later(0));
+    const sections = [...box.querySelectorAll("section")].map((s) => s.className);
+    expect(sections).toEqual(["foyer-weather", "foyer-station"]);
+    expect(box.querySelector(".foyer-station")?.getAttribute("aria-live")).toBe("off");
+  });
+
+  it("gives the closest station of a fire, with its distance and its limits", () => {
+    const sample = sampleAtStation(file, 0, latest);
+    if (!sample) throw new Error("no measurement");
+    renderFoyerStation(box, { state: "ok", sample, distanceKm: 22.24 });
+    expect(box.querySelector("h4")?.textContent).toBe("Vent mesuré à la station la plus proche");
+    const text = box.textContent;
+    expect(text).toContain("StationARBENT, altitude 534 m");
+    expect(text).toContain("Distance22,2 km du centre du foyer");
+    expect(text).toContain("Heure de la mesure12 novembre 2026 à 00:00");
+    expect(text).toContain("Directionde est-nord-est (70°)");
+    expect(text).toContain("le vent sur le feu peut être différent");
+    renderFoyerStation(box, {
+      state: "ok",
+      sample: { ...sample, station: { ...arbent, altitude: null } },
+      distanceKm: 3,
+    });
+    expect(box.textContent).toContain("StationARBENTDistance3 km du centre du foyer");
+  });
+
+  it("explains why a fire has no station", () => {
+    const cases: [Parameters<typeof renderFoyerStation>[1], string][] = [
+      [{ state: "loading" }, "Chargement des stations…"],
+      [
+        { state: "unavailable", reason: "non publiées" },
+        "Mesures des stations indisponibles (non publiées).",
+      ],
+      [{ state: "forecast" }, "Pas de mesure pour une heure de prévision."],
+      [
+        { state: "none", maxKm: 50 },
+        "Aucune station n'a mesuré le vent à cette heure à moins de 50 km du foyer.",
+      ],
+    ];
+    for (const [model, text] of cases) {
+      renderFoyerStation(box, model);
+      expect(box.querySelector("h4")?.textContent).toBe("Vent mesuré à la station la plus proche");
+      expect(box.querySelector("p")?.textContent).toBe(text);
+      expect(box.querySelector("dl")).toBeNull();
+    }
+  });
+
+  it("draws the legend of the stations in each state", () => {
+    const time = new Date(latest * 1000);
+    const line = () => box.querySelector(".legend-stations");
+    renderStationsLegend(box, { state: "ok", time, count: 719 });
+    expect(box.querySelector("h3")?.textContent).toBe("Vent mesuré");
+    expect(box.dataset["state"]).toBe("ok");
+    expect(line()?.querySelector(".swatch-station")?.getAttribute("aria-hidden")).toBe("true");
+    expect(line()?.textContent).toBe(
+      "719 stations Météo-France à 00:00 : la flèche indique où souffle le vent, le nombre sa vitesse moyenne en km/h ; un clic donne le détail.",
+    );
+    expect(box.textContent).toContain(
+      "Les stations qui se chevaucheraient sont masquées : zoomer pour les voir toutes.",
+    );
+    renderStationsLegend(box, { state: "ok", time, count: 1 });
+    expect(line()?.textContent).toContain("1 station Météo-France à 00:00");
+    renderStationsLegend(box, { state: "ok", time: null, count: 0 });
+    expect(line()?.textContent).toBe(
+      "Stations Météo-France : pas de mesure pour l'instant affiché.",
+    );
+    expect(box.textContent).not.toContain("zoomer");
+    renderStationsLegend(box, { state: "forecast" });
+    expect(box.dataset["state"]).toBe("forecast");
+    expect(line()?.textContent).toBe(
+      "Stations Météo-France : pas de mesure pour une heure de prévision.",
+    );
+    renderStationsLegend(box, { state: "loading" });
+    expect(line()?.textContent).toBe("Chargement des mesures des stations…");
+    renderStationsLegend(box, { state: "unavailable", reason: "non publiées" });
+    expect(line()?.textContent).toBe("Mesures des stations indisponibles (non publiées).");
+  });
+
+  it("keeps the legend of the wind without the stations", () => {
+    const time = new Date(latest * 1000);
+    renderWindLegend(
+      box,
+      { state: "ok", time, run: null, forecast: false, animated: false },
+      WIND_COLOURS,
+    );
+    expect(box.querySelector(".legend-stations")).toBeNull();
+    expect(box.textContent).not.toContain("Météo-France à");
+  });
+
+  it("never interprets the name of a station as HTML", () => {
+    const named = { ...arbent, name: "<img src=x>" };
+    renderDetail(box, { ...point, station: named, sample: null }, later(0));
+    expect(box.querySelector("img")).toBeNull();
+    expect(box.querySelector("h3")?.textContent).toBe("Station Météo-France : <img src=x>");
   });
 });

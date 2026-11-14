@@ -6,6 +6,7 @@ import { BASEMAPS } from "./basemaps";
 import type { BurnedArea, Detection, Foyer, LoadResult, Status, Summary } from "./data";
 import { type FireWeather, type WeatherSample, nextHours, sampleAt } from "./fireweather";
 import * as format from "./format";
+import type { Station, StationSample } from "./stations";
 import type { Basemap } from "./share";
 import { type SourceGroup, ageMinutes, freshness, groupOf, health } from "./status";
 import { SPEED_CLASSES, type WindSample, compassAbbreviation, compassPoint } from "./wind";
@@ -47,6 +48,7 @@ const SOURCE_NAMES: Record<SourceGroup, string> = {
   firms: "Foyers (NASA FIRMS)",
   effis: "Surfaces brûlées et bilan (EFFIS)",
   meteo: "Vent et météo (Open-Meteo, modèle AROME de Météo-France)",
+  stations: "Vent mesuré aux stations (Météo-France)",
 };
 
 export function renderStatus(container: HTMLElement, model: StatusModel): void {
@@ -272,12 +274,125 @@ export interface WindPoint {
   forecast: boolean;
 }
 
+/** A Météo-France station and the wind it measured at the hour shown. */
+export interface StationPoint {
+  kind: "station";
+  index: number;
+  station: Station;
+  /** Measurement of the hour shown, or null when there is none. */
+  sample: StationSample | null;
+  /** True when the instant is a forecast hour: nothing is measured yet. */
+  forecast: boolean;
+}
+
 export type Selection =
   | { kind: "foyer"; foyer: Foyer }
   | { kind: "detection"; detection: Detection }
   | { kind: "burned"; area: BurnedArea }
   | WindPoint
+  | StationPoint
   | null;
+
+const STATIONS_SOURCE = "Météo-France, mesures horaires des stations au sol";
+
+function stationName(station: Station): string {
+  return station.name ?? `station ${station.id}`;
+}
+
+function measuredRows(s: StationSample): Node[] {
+  return [
+    ...row("Heure de la mesure", format.dateTimeLong(new Date(s.time * 1000))),
+    ...row("Vent moyen sur 10 min, à 10 m", s.speed === null ? "sans donnée" : kmh(s.speed)),
+    ...row(
+      "Direction",
+      s.from === null
+        ? s.speed === 0
+          ? "vent calme"
+          : "sans donnée"
+        : `de ${compassPoint(s.from)} (${String(s.from)}°)`,
+    ),
+    ...row("Rafale maximale de l'heure", s.gusts === null ? "sans donnée" : kmh(s.gusts)),
+  ];
+}
+
+function renderStation(container: HTMLElement, p: StationPoint): void {
+  const s = p.station;
+  container.append(
+    el("h3", {}, `Station Météo-France : ${stationName(s)}`),
+    el(
+      "dl",
+      {},
+      ...row("Position", format.coordinates(s.lat, s.lon)),
+      ...(s.altitude === null ? [] : row("Altitude", `${format.number(s.altitude)} m`)),
+      ...(p.sample === null ? [] : measuredRows(p.sample)),
+      ...row("Source", STATIONS_SOURCE),
+    ),
+  );
+  if (p.sample === null) {
+    container.append(
+      el(
+        "p",
+        {},
+        p.forecast
+          ? "Pas de mesure pour une heure de prévision."
+          : "Pas de mesure de cette station pour l'heure affichée.",
+      ),
+    );
+  }
+  container.append(
+    el(
+      "p",
+      { class: "muted" },
+      "Mesure de la station, publiée par Météo-France sous Licence Ouverte : la dernière faite à l'instant affiché, à l'heure ronde.",
+    ),
+  );
+}
+
+// ------------------------------------------ wind measured near a fire
+
+export type FoyerStationModel =
+  | { state: "loading" }
+  | { state: "unavailable"; reason: string }
+  /** A forecast hour: nothing is measured yet. */
+  | { state: "forecast" }
+  /** No station with a measurement at that hour within `maxKm`. */
+  | { state: "none"; maxKm: number }
+  | { state: "ok"; sample: StationSample; distanceKm: number };
+
+/** Wind measured at the closest station, at the hour shown. */
+export function renderFoyerStation(container: HTMLElement, model: FoyerStationModel): void {
+  container.replaceChildren(el("h4", {}, "Vent mesuré à la station la plus proche"));
+  if (model.state !== "ok") {
+    const text =
+      model.state === "loading"
+        ? "Chargement des stations…"
+        : model.state === "unavailable"
+          ? `Mesures des stations indisponibles (${model.reason}).`
+          : model.state === "forecast"
+            ? "Pas de mesure pour une heure de prévision."
+            : `Aucune station n'a mesuré le vent à cette heure à moins de ${String(model.maxKm)} km du foyer.`;
+    container.append(el("p", { class: "muted" }, text));
+    return;
+  }
+  const s = model.sample.station;
+  container.append(
+    el(
+      "dl",
+      {},
+      ...row(
+        "Station",
+        `${stationName(s)}${s.altitude === null ? "" : `, altitude ${format.number(s.altitude)} m`}`,
+      ),
+      ...row("Distance", `${format.decimal(model.distanceKm)} km du centre du foyer`),
+      ...measuredRows(model.sample),
+    ),
+    el(
+      "p",
+      { class: "muted" },
+      "Mesure de Météo-France à l'emplacement de la station : à une autre altitude ou derrière un relief, le vent sur le feu peut être différent.",
+    ),
+  );
+}
 
 const OPEN_METEO = "https://open-meteo.com/";
 const MODEL_NAME = "modèle AROME HD de Météo-France";
@@ -479,6 +594,10 @@ export function renderDetail(container: HTMLElement, selection: Selection, now: 
     renderWind(container, selection);
     return;
   }
+  if (selection.kind === "station") {
+    renderStation(container, selection);
+    return;
+  }
   if (selection.kind === "foyer") {
     const f = selection.foyer;
     const since = ageMinutes(f.last, now);
@@ -515,6 +634,7 @@ export function renderDetail(container: HTMLElement, selection: Selection, now: 
       // Follows the timeline without being read again at each step: the
       // slider already says the instant.
       el("section", { class: "foyer-weather", "aria-live": "off" }),
+      el("section", { class: "foyer-station", "aria-live": "off" }),
     );
     return;
   }
@@ -604,7 +724,12 @@ export function renderSummary(container: HTMLElement, summary: LoadResult<Summar
 
 // ---------------------------------------------------------- map captions
 
-export function renderAttribution(container: HTMLElement, basemap: Basemap, wind = false): void {
+export function renderAttribution(
+  container: HTMLElement,
+  basemap: Basemap,
+  wind = false,
+  stations = false,
+): void {
   container.replaceChildren();
   const parts: Node[] = [];
   for (const item of BASEMAPS[basemap].attribution) {
@@ -619,6 +744,7 @@ export function renderAttribution(container: HTMLElement, basemap: Basemap, wind
     parts.push(document.createTextNode(` | Vent ${MODEL_NAME}, données `));
     parts.push(link("Open-Meteo.com", OPEN_METEO));
   }
+  if (stations) parts.push(document.createTextNode(" | Vent mesuré Météo-France"));
   parts.push(document.createTextNode(" | "));
   parts.push(link("MapLibre", "https://maplibre.org/"));
   container.append(...parts);
@@ -668,6 +794,13 @@ export function renderLegend(container: HTMLElement, colours: readonly string[])
   );
 }
 
+export type StationsLegendModel =
+  | { state: "loading" }
+  | { state: "unavailable"; reason: string }
+  | { state: "forecast" }
+  /** `time` is null when the file has no measurement for the instant. */
+  | { state: "ok"; time: Date | null; count: number };
+
 export type WindLegendModel =
   | { state: "loading" }
   | { state: "unavailable"; reason: string }
@@ -679,6 +812,33 @@ export type WindLegendModel =
       forecast: boolean;
       animated: boolean;
     };
+
+/** Legend of the stations layer: hour and number of measurements, how to read them. */
+export function renderStationsLegend(container: HTMLElement, model: StationsLegendModel): void {
+  container.replaceChildren(el("h3", { class: "legend-title" }, "Vent mesuré"));
+  container.dataset["state"] = model.state;
+  const swatch = el("span", { class: "swatch swatch-station", "aria-hidden": "true" });
+  const text =
+    model.state === "loading"
+      ? "Chargement des mesures des stations…"
+      : model.state === "unavailable"
+        ? `Mesures des stations indisponibles (${model.reason}).`
+        : model.state === "forecast"
+          ? "Stations Météo-France : pas de mesure pour une heure de prévision."
+          : model.time === null || model.count === 0
+            ? "Stations Météo-France : pas de mesure pour l'instant affiché."
+            : `${format.number(model.count)} station${model.count > 1 ? "s" : ""} Météo-France à ${format.hour(model.time)} : la flèche indique où souffle le vent, le nombre sa vitesse moyenne en km/h ; un clic donne le détail.`;
+  container.append(el("p", { class: "legend-caption legend-stations" }, swatch, text));
+  if (model.state === "ok" && model.time !== null && model.count > 0) {
+    container.append(
+      el(
+        "p",
+        { class: "legend-caption" },
+        "Les stations qui se chevaucheraient sont masquées : zoomer pour les voir toutes.",
+      ),
+    );
+  }
+}
 
 const SPEED_LABELS = [
   `moins de ${String(SPEED_CLASSES[0])} km/h`,

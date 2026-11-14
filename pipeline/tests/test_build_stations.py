@@ -139,14 +139,22 @@ def test_a_run_adds_the_latest_hours_to_the_previous_file(tmp_path: Path) -> Non
     assert entry["label"] == "Météo-France, vent mesuré aux stations"
 
 
-def test_first_run_reads_the_packages_of_every_department(tmp_path: Path) -> None:
+def test_first_run_reads_the_packages_of_every_department(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
     bodies: dict[str, bytes | Exception] = {
         meteofrance.department_url(d): b"[]" for d in stations.DEPARTMENTS
     }
     bodies[meteofrance.department_url(13)] = DEPARTMENT_13
+    for d in (2, 7, 20):
+        bodies[meteofrance.department_url(d)] = urllib.error.URLError("down")
     api = Api({**bodies, LIST_URL: STATION_LIST})
     ctx = context(tmp_path / "out", None, api)
     run(ctx)
+    assert "Météo-France: 92 of 95 department packages read; not read: 2, 7, 20" in (
+        capsys.readouterr().out.splitlines()
+    )
     asked = [url for url, _ in api.requests]
     assert asked[1:-1] == [meteofrance.department_url(d) for d in range(1, 96)]
     assert asked[-1] == LIST_URL
@@ -156,12 +164,19 @@ def test_first_run_reads_the_packages_of_every_department(tmp_path: Path) -> Non
     assert ctx.status[build.STATIONS_SOURCE]["count"] == 16
 
 
-def test_packages_that_fail_are_asked_again_next_time(tmp_path: Path) -> None:
+def test_packages_that_fail_are_asked_again_next_time(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
     urls = list(HOURLY)
     api = Api({**HOURLY, urls[0]: OSError("reset"), urls[1]: b"{}", LIST_URL: STATION_LIST})
     ctx = context(tmp_path / "out", write_previous(tmp_path / "previous"), api)
     run(ctx)
     assert ctx.status[build.STATIONS_SOURCE]["ok"] is True
+    # The log names the packages not read.
+    assert "Météo-France: 1 of 3 hourly packages read; not read: 21:00Z, 22:00Z" in (
+        capsys.readouterr().out.splitlines()
+    )
     document = read(ctx.out / build.STATIONS)
     # 23:00 came: the stations of all France; 21:00 and 22:00 did not.
     aix = next(s for s in document["stations"] if s["id"] == "01014002")
@@ -251,6 +266,21 @@ def test_when_every_package_fails_the_previous_file_is_kept(tmp_path: Path) -> N
     assert (ctx.out / build.STATIONS).read_bytes() == (previous / build.STATIONS).read_bytes()
     assert ctx.status[build.STATIONS_SOURCE]["ok"] is False
     assert ctx.status[build.STATIONS_SOURCE]["error"] == "délai de réponse dépassé"
+
+
+def test_the_log_names_ten_packages_not_read_at_most(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    bodies: dict[str, bytes | Exception] = {
+        meteofrance.department_url(d): TimeoutError() for d in stations.DEPARTMENTS
+    }
+    bodies[meteofrance.department_url(13)] = DEPARTMENT_13
+    run(context(tmp_path / "out", None, Api({**bodies, LIST_URL: STATION_LIST})))
+    assert (
+        "Météo-France: 1 of 95 department packages read; "
+        "not read: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 and 84 more"
+    ) in capsys.readouterr().out.splitlines()
 
 
 def test_a_previous_file_that_differs_is_not_reused(tmp_path: Path) -> None:
