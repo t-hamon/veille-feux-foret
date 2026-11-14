@@ -52,6 +52,8 @@ Défaut corrigé avant la livraison : la première version prenait pour chaque m
 
 Captures dans `docs/captures/lot-2/`, prises dans l'espace de développement par Playwright (Chromium), fond uni gris et police de substitution comme pour la partie 6c, foyers marqués actifs : `propagation-carte-bureau.png` et `propagation-carte-mobile.png` (foyer 1 à 08:00, dernière heure de la frise), `propagation-fiche-bureau.png` et `propagation-fiche-mobile.png` (fiche du foyer 1 ; le scénario `vent` n'a pas de fichier des stations, d'où « Mesures des stations indisponibles »), `propagation-legende-bureau.png`.
 
+Poste Windows du mainteneur, 14 novembre 2026 vers 22:10 (heure de Paris), branche appliquée sur `main` par `git am` : Vitest, 156 tests réussis ; build sous les budgets ; Playwright sur les 5 profils (Chromium, Firefox et WebKit, desktop et mobile), 392 scénarios réussis, 3 ignorés volontairement (navigation clavier sur mobile et WebKit), aucun échec. Le build local servi par wrangler n'a pas de fichiers de données (`data/` absent hors du pipeline) : la vérification à la main n'y montre donc que les messages de données indisponibles.
+
 | Non exécuté | Raison | Quand |
 |---|---|---|
 | Playwright avec le Chromium de la version 1.64.1, Firefox et WebKit dans l'espace de développement | non téléchargeables | poste Windows ; CI de la PR |
