@@ -1,6 +1,6 @@
 // View shared through the address: map position, base map, instant of the
-// timeline, selected fire cluster, burned areas, wind and stations layers, in
-// the URL fragment.
+// timeline, selected fire cluster, burned areas, wind, stations and estimated
+// spread layers, in the URL fragment.
 // The fragment is never sent to the server. Each value is checked against a
 // strict pattern and a range; anything else is ignored, never echoed.
 
@@ -20,6 +20,7 @@ export interface SharedState {
   burned?: boolean;
   wind?: boolean;
   stations?: boolean;
+  spread?: boolean;
 }
 
 export const VIEW_LIMITS = {
@@ -72,6 +73,7 @@ export function parseFragment(fragment: string): SharedState {
   if (params.get("brule") === "1") state.burned = true;
   if (params.get("vent") === "1") state.wind = true;
   if (params.get("stations") === "1") state.stations = true;
+  if (params.get("propagation") === "1") state.spread = true;
   return state;
 }
 
@@ -87,6 +89,7 @@ export function formatFragment(state: SharedState): string {
   if (state.burned) params.set("brule", "1");
   if (state.wind) params.set("vent", "1");
   if (state.stations) params.set("stations", "1");
+  if (state.spread) params.set("propagation", "1");
   // "/" is kept readable in the position: URLSearchParams would encode it.
   const text = params.toString().replace(/%2F/g, "/");
   return text === "" ? "" : `#${text}`;

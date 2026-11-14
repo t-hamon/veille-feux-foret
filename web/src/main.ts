@@ -16,8 +16,9 @@ import {
 } from "./data";
 import { type FireWeatherFile, distanceKm, parseFireWeather, weatherHour } from "./fireweather";
 import * as format from "./format";
-import type { MapHandle, Picked, StationMarker } from "./map";
+import type { MapHandle, Picked, SpreadShape, StationMarker } from "./map";
 import { AGE_COLOURS, WIND_COLOURS } from "./palette";
+import { SPREAD_HOURS, type SpreadEstimate, spreadAt } from "./spread";
 import { type Basemap, type SharedState, type View, formatFragment, parseFragment } from "./share";
 import {
   NEAREST_MAX_KM,
@@ -31,8 +32,10 @@ import {
 import { LABELS, applyTheme, loadPreference, nextPreference, savePreference } from "./theme";
 import { type Range, fireInstant, instantAt, isForecast, rangeOf, stepOf } from "./timeline";
 import {
+  type FoyerSpreadModel,
   type FoyerStationModel,
   type FoyerWeatherModel,
+  type SpreadLegendModel,
   type StationPoint,
   type StationsLegendModel,
   type Selection,
@@ -41,12 +44,14 @@ import {
   markSelectedFoyer,
   renderAttribution,
   renderDetail,
+  renderFoyerSpread,
   renderFoyerStation,
   renderFoyerWeather,
   renderFoyers,
   renderLegend,
   renderStatus,
   renderSummary,
+  renderSpreadLegend,
   renderStationsLegend,
   renderWindLegend,
 } from "./ui";
@@ -123,6 +128,7 @@ interface PageState {
   windVisible: boolean;
   windAnimated: boolean;
   stationsVisible: boolean;
+  spreadVisible: boolean;
 }
 
 // Visitors who ask for reduced motion get still arrows; they can still start
@@ -139,6 +145,7 @@ const state: PageState = {
   windVisible: shared.wind ?? false,
   windAnimated: !reducedMotion,
   stationsVisible: shared.stations ?? false,
+  spreadVisible: shared.spread ?? false,
 };
 
 let map: MapHandle | null = null;
@@ -150,6 +157,9 @@ let fireWeather: LoadResult<FireWeatherFile> | null = null;
 let fireWeatherRejected = 0;
 let stationsData: LoadResult<StationsFile> | null = null;
 let stationsRejected = 0;
+// Foyers of foyers.geojson and the last update, once read.
+let allFoyers: Foyer[] = [];
+let lastUpdate: number | null = null;
 let refreshStatus = (): void => undefined;
 // Set up once the status file is there.
 let updateRange = (): void => undefined;
@@ -175,6 +185,7 @@ function updateAddress(): void {
   if (state.burnedVisible) next.burned = true;
   if (state.windVisible) next.wind = true;
   if (state.stationsVisible) next.stations = true;
+  if (state.spreadVisible) next.spread = true;
   const fragment = formatFragment(next);
   const url = `${window.location.pathname}${window.location.search}${fragment}`;
   window.history.replaceState(null, "", url);
@@ -257,6 +268,7 @@ async function start(): Promise<void> {
   renderSummary(panel.summary, summary);
 
   const foyerList = items(foyers);
+  allFoyers = foyerList.state === "ok" ? foyerList.value : [];
   const detectionList = items(detections);
   const outlineList = items(outlines);
 
@@ -273,6 +285,7 @@ async function start(): Promise<void> {
     if (selection?.kind === "foyer") {
       refreshFoyerWeather();
       refreshFoyerStation();
+      refreshFoyerSpread();
       void loadFireWeather();
       void loadStations();
     }
@@ -296,10 +309,17 @@ async function start(): Promise<void> {
 
 // ----------------------------------------------------------- the timeline
 
-/** Last hour of the wind forecast, when the wind is shown. */
+/**
+ * Last instant of the forecast part of the timeline: the last hour of the wind
+ * forecast when the wind is shown, the end of the estimated spread when it is
+ * shown, the later of the two when both are.
+ */
 function forecastEnd(): number | null {
-  if (!state.windVisible || wind?.state !== "ok") return null;
-  return hourTime(wind.value, wind.value.hours - 1);
+  const ends: number[] = [];
+  if (state.windVisible && wind?.state === "ok")
+    ends.push(hourTime(wind.value, wind.value.hours - 1));
+  if (state.spreadVisible && lastUpdate !== null) ends.push(lastUpdate + SPREAD_HOURS * 3600);
+  return ends.length > 0 ? Math.max(...ends) : null;
 }
 
 function setupTimeline(status: Status, detections: LoadResult<Detection[]>): void {
@@ -309,6 +329,7 @@ function setupTimeline(status: Status, detections: LoadResult<Detection[]>): voi
   const play = $("#lecture", HTMLButtonElement);
   const latest = $("#maintenant", HTMLButtonElement);
   const times = detections.state === "ok" ? detections.value.map((d) => d.t) : [];
+  lastUpdate = Math.floor(status.generatedAt.getTime() / 1000);
   let range = rangeOf(status.generatedAt, status.windowHours, forecastEnd());
   state.range = range;
   let timer = 0;
@@ -523,6 +544,7 @@ async function loadFireWeather(): Promise<void> {
     fireWeather = result;
   }
   refreshFoyerWeather();
+  refreshSpread();
 }
 
 function foyerWeatherModel(foyer: Foyer): FoyerWeatherModel {
@@ -552,6 +574,95 @@ function refreshFoyerWeather(): void {
   if (state.selection?.kind !== "foyer") return;
   const container = panel.detail.querySelector<HTMLElement>(".foyer-weather");
   if (container) renderFoyerWeather(container, foyerWeatherModel(state.selection.foyer));
+}
+
+// ---------------------------------------------------- estimated spread
+
+/** Instant of the estimate, or why there is none. */
+function spreadInstant(): { at: number; now: number; capped: boolean } | null {
+  const range = state.range;
+  const instant = state.instant ?? range?.now ?? null;
+  if (!range || instant === null || instant <= range.now) return null;
+  const last = range.now + SPREAD_HOURS * 3600;
+  return { at: Math.min(instant, last), now: range.now, capped: instant > last };
+}
+
+function spreadOf(foyer: Foyer, at: number, now: number): SpreadEstimate | null {
+  if (!foyer.active || fireWeather?.state !== "ok") return null;
+  const weather = fireWeather.value.fires.get(foyer.id);
+  return weather ? spreadAt(weather, [foyer.lat, foyer.lon], now, at) : null;
+}
+
+function lonLat(points: [number, number][]): [number, number][] {
+  return points.map(([lat, lon]) => [lon, lat]);
+}
+
+function spreadShapes(): SpreadShape[] {
+  const when = spreadInstant();
+  if (!state.spreadVisible || when === null) return [];
+  const shapes: SpreadShape[] = [];
+  for (const foyer of allFoyers) {
+    const shown = spreadOf(foyer, when.at, when.now);
+    const total = spreadOf(foyer, when.now + SPREAD_HOURS * 3600, when.now);
+    if (!shown || !total) continue;
+    shapes.push({
+      foyer: foyer.id,
+      rings: shown.rings,
+      paths: total.paths.map((p) => lonLat(p.points)),
+    });
+  }
+  return shapes;
+}
+
+function spreadLegendModel(): SpreadLegendModel {
+  if (fireWeather === null || fireWeatherLoading) return { state: "loading" };
+  if (fireWeather.state !== "ok") {
+    return {
+      state: "unavailable",
+      reason: fireWeather.state === "missing" ? "non publiée" : fireWeather.message,
+    };
+  }
+  const when = spreadInstant();
+  if (when === null) return { state: "past" };
+  const count = allFoyers.filter((f) => spreadOf(f, when.at, when.now) !== null).length;
+  if (count === 0) return { state: "none" };
+  return { state: "ok", time: new Date(when.at * 1000), count, capped: when.capped };
+}
+
+function foyerSpreadModel(foyer: Foyer): FoyerSpreadModel {
+  if (!foyer.active) return { state: "inactive" };
+  if (fireWeather === null || fireWeatherLoading) return { state: "loading" };
+  if (fireWeather.state !== "ok") {
+    return {
+      state: "unavailable",
+      reason: fireWeather.state === "missing" ? "non publiée" : fireWeather.message,
+    };
+  }
+  const range = state.range;
+  if (!range) return { state: "noweather" };
+  const total = spreadOf(foyer, range.now + SPREAD_HOURS * 3600, range.now);
+  if (!total) return { state: "noweather" };
+  const when = spreadInstant();
+  return {
+    state: "ok",
+    total,
+    shown: when === null || when.capped ? null : spreadOf(foyer, when.at, when.now),
+  };
+}
+
+function refreshFoyerSpread(): void {
+  if (state.selection?.kind !== "foyer") return;
+  const container = panel.detail.querySelector<HTMLElement>(".foyer-propagation");
+  if (container) renderFoyerSpread(container, foyerSpreadModel(state.selection.foyer));
+}
+
+const spreadLegend = $("#legende-propagation");
+
+function refreshSpread(): void {
+  map?.setSpread(spreadShapes());
+  spreadLegend.hidden = !state.spreadVisible;
+  if (state.spreadVisible) renderSpreadLegend(spreadLegend, spreadLegendModel());
+  refreshFoyerSpread();
 }
 
 // ------------------------------------------------ the measured wind
@@ -659,6 +770,7 @@ function refreshDetail(): void {
   if (state.selection?.kind === "foyer") {
     refreshFoyerWeather();
     refreshFoyerStation();
+    refreshFoyerSpread();
     return;
   }
   if (state.selection?.kind === "station") {
@@ -696,7 +808,13 @@ const stationsLegend = $("#legende-stations");
 
 function renderStationsControls(): void {
   stationsLegend.hidden = !state.stationsVisible;
-  renderAttribution(controls.attribution, state.basemap, state.windVisible, state.stationsVisible);
+  renderAttribution(
+    controls.attribution,
+    state.basemap,
+    state.windVisible,
+    state.stationsVisible,
+    state.spreadVisible,
+  );
   if (state.stationsVisible) renderStationsLegend(stationsLegend, stationsLegendModel());
 }
 
@@ -706,6 +824,7 @@ function refreshWind(): void {
   map?.setStations(stationMarkers());
   if (state.windVisible) renderWindControls();
   renderStationsControls();
+  refreshSpread();
   refreshDetail();
 }
 
@@ -741,12 +860,19 @@ const controls = {
   burned: $("#couche-brule", HTMLInputElement),
   wind: $("#couche-vent", HTMLInputElement),
   stations: $("#couche-stations", HTMLInputElement),
+  spread: $("#couche-propagation", HTMLInputElement),
 };
 
 function showBasemap(value: Basemap): void {
   state.basemap = value;
   controls.basemap.value = value;
-  renderAttribution(controls.attribution, value, state.windVisible, state.stationsVisible);
+  renderAttribution(
+    controls.attribution,
+    value,
+    state.windVisible,
+    state.stationsVisible,
+    state.spreadVisible,
+  );
 }
 
 // The controls work from the first render, before the data and the map code
@@ -796,6 +922,14 @@ function setupControls(): void {
     refreshWind();
     if (state.stationsVisible) void loadStations();
   });
+  controls.spread.checked = state.spreadVisible;
+  controls.spread.addEventListener("change", () => {
+    state.spreadVisible = controls.spread.checked;
+    updateRange();
+    updateAddress();
+    refreshWind();
+    if (state.spreadVisible) void loadFireWeather();
+  });
   windButton.addEventListener("click", () => {
     state.windAnimated = !state.windAnimated;
     map?.setWindAnimated(state.windAnimated);
@@ -808,6 +942,10 @@ function setupControls(): void {
   if (state.stationsVisible) {
     renderStationsControls();
     void loadStations();
+  }
+  if (state.spreadVisible) {
+    refreshSpread();
+    void loadFireWeather();
   }
 }
 

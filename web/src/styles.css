@@ -259,7 +259,8 @@ h3 {
 }
 
 .foyer-weather,
-.foyer-station {
+.foyer-station,
+.foyer-propagation {
   margin-top: 1rem;
   padding-top: 0.75rem;
   border-top: 1px solid var(--border);
@@ -270,7 +271,8 @@ h3 {
   font-size: 1rem;
 }
 
-.foyer-weather h4 {
+.foyer-weather h4,
+.foyer-propagation h4 {
   margin: 0 0 0.5rem;
   font-size: 1rem;
 }
@@ -658,6 +660,27 @@ select,
 .swatch-nrt {
   background: rgb(191 54 12 / 45%);
   border: 1px dashed #bf360c;
+}
+
+/* Estimated spread, in the colour of the forecast (SPREAD_COLOUR), as drawn
+   on the map: the low estimate darker than the high one around it. */
+.swatch-spread-low {
+  background: rgb(107 63 160 / 35%);
+  border: 1.5px solid #6b3fa0;
+  border-radius: 50%;
+}
+
+.swatch-spread-high {
+  background: rgb(107 63 160 / 15%);
+  border: 1px solid #6b3fa0;
+  border-radius: 50%;
+}
+
+.swatch-spread-path {
+  height: 0;
+  border: 0;
+  border-top: 2px dashed #6b3fa0;
+  vertical-align: 0.25rem;
 }
 
 /* Wind lines are drawn on a light map: each swatch sits on a light band, so

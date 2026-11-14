@@ -19,15 +19,18 @@ import {
 } from "./data";
 import { parseFireWeather } from "./fireweather";
 import { AGE_COLOURS, WIND_COLOURS } from "./palette";
+import { spreadAt } from "./spread";
 import { parseStations, sampleAtStation, stationsAt } from "./stations";
 import {
   markSelectedFoyer,
   renderAttribution,
   renderDetail,
+  renderFoyerSpread,
   renderFoyerStation,
   renderFoyerWeather,
   renderFoyers,
   renderLegend,
+  renderSpreadLegend,
   renderStationsLegend,
   renderStatus,
   renderSummary,
@@ -510,7 +513,8 @@ describe("wind measured at the stations", () => {
     if (!foyer) throw new Error("no foyer");
     renderDetail(box, { kind: "foyer", foyer }, later(0));
     const sections = [...box.querySelectorAll("section")].map((s) => s.className);
-    expect(sections).toEqual(["foyer-weather", "foyer-station"]);
+    expect(sections).toEqual(["foyer-weather", "foyer-station", "foyer-propagation"]);
+    expect(box.querySelector(".foyer-propagation")?.getAttribute("aria-live")).toBe("off");
     expect(box.querySelector(".foyer-station")?.getAttribute("aria-live")).toBe("off");
   });
 
@@ -601,5 +605,124 @@ describe("wind measured at the stations", () => {
     renderDetail(box, { ...point, station: named, sample: null }, later(0));
     expect(box.querySelector("img")).toBeNull();
     expect(box.querySelector("h3")?.textContent).toBe("Station Météo-France : <img src=x>");
+  });
+});
+
+describe("estimated spread", () => {
+  // Cluster 1 of 12 October 2026 and the weather at it; update at 00:43:09 UTC.
+  const weather = parseFireWeather(JSON.parse(ventMeteo)).file.fires.get(1);
+  if (!weather) throw new Error("no weather");
+  const now = Date.UTC(2026, 9, 12, 0, 43, 9) / 1000;
+  const origin: [number, number] = [49.39892, 1.60739];
+  const total = spreadAt(weather, origin, now, now + 6 * 3600);
+  const shown = spreadAt(weather, origin, now, Date.UTC(2026, 9, 12, 3) / 1000);
+  if (!total || !shown) throw new Error("no estimate");
+  // Kilometres as the page writes them: one decimal at most, French style.
+  const km = (value: number) => String(Number(value.toFixed(1))).replace(".", ",");
+
+  it("gives the range over 6 hours, the hour shown, its method and its limits", () => {
+    renderFoyerSpread(box, { state: "ok", total, shown });
+    expect(box.querySelector("h4")?.textContent).toBe("Propagation estimée (non officielle)");
+    const text = box.textContent;
+    expect(text).toContain(
+      `Sur les 6 heures après la mise à jouravancée de ${km(total.paths[0].km)} à ${km(total.paths[1].km)} km`,
+    );
+    expect(text).toContain(`Direction de l'avancée`);
+    expect(text).toContain(`(${String(Math.round(total.towards))}°)`);
+    expect(text).toContain("Largeur à 6 heures");
+    // 03:00 UTC is 05:00 in Paris.
+    expect(text).toContain(
+      `À 05:00avancée de ${km(shown.paths[0].km)} à ${km(shown.paths[1].km)} km`,
+    );
+    expect(text).toContain(
+      `Vent moyen prévu${String(Math.round(total.speed))} km/h, modèle AROME HD`,
+    );
+    expect(text).toContain("de 3 % à 8 % du vent moyen prévu à 10 m");
+    expect(text).toContain(
+      "modèle de Valabre, Sauvagnargues-Lesage et al. 2001 ; Cruz et Alexander 2019",
+    );
+    expect(text).toContain("système canadien FBP (1992)");
+    expect(text).toContain("sous-estime les feux d'herbe");
+    expect(text).toContain(
+      "Seules les consignes des préfectures et des services de secours font foi.",
+    );
+    renderFoyerSpread(box, { state: "ok", total, shown: null });
+    expect(box.textContent).not.toContain("À 05:00");
+  });
+
+  it("explains why a fire has no estimate", () => {
+    const cases: [Parameters<typeof renderFoyerSpread>[1], string][] = [
+      [{ state: "loading" }, "Chargement de la météo du foyer…"],
+      [
+        { state: "unavailable", reason: "non publiée" },
+        "Estimation impossible : météo des foyers indisponible (non publiée).",
+      ],
+      [
+        { state: "inactive" },
+        "Estimation faite seulement pour les foyers actifs, avec une détection dans les 6 heures précédant la mise à jour.",
+      ],
+      [
+        { state: "noweather" },
+        "Estimation impossible : vent prévu manquant au foyer sur les 6 heures après la mise à jour.",
+      ],
+    ];
+    for (const [model, text] of cases) {
+      renderFoyerSpread(box, model);
+      expect(box.querySelector("p")?.textContent).toBe(text);
+      expect(box.querySelector("dl")).toBeNull();
+    }
+  });
+
+  it("draws the legend of the estimated spread in each state", () => {
+    const caption = () => box.querySelectorAll(".legend-caption")[0]?.textContent;
+    renderSpreadLegend(box, {
+      state: "ok",
+      time: new Date(Date.UTC(2026, 9, 12, 3) * 1),
+      count: 1,
+      capped: false,
+    });
+    expect(box.querySelector("h3")?.textContent).toBe("Propagation estimée");
+    expect(box.dataset["state"]).toBe("ok");
+    expect([...box.querySelectorAll("li")].map((li) => li.textContent)).toEqual([
+      "estimation basse (3 % du vent)",
+      "estimation haute (8 % du vent)",
+      "trajet de la tête du feu sur 6 heures",
+    ]);
+    expect(box.querySelectorAll("[aria-hidden='true']")).toHaveLength(3);
+    expect(caption()).toBe(
+      "1 foyer actif, estimation à 05:00. La fiche d'un foyer en donne les limites.",
+    );
+    expect(box.textContent).toContain("Estimation non officielle, ordre de grandeur");
+    renderSpreadLegend(box, {
+      state: "ok",
+      time: new Date(Date.UTC(2026, 9, 12, 6, 43) * 1),
+      count: 3,
+      capped: true,
+    });
+    expect(caption()).toBe(
+      "3 foyers actifs, estimation à 08:43, la dernière heure estimée (6 heures après la mise à jour). La fiche d'un foyer en donne les limites.",
+    );
+    renderSpreadLegend(box, { state: "past" });
+    expect(caption()).toBe(
+      "Estimation seulement sur les heures de prévision : avancez la frise après la dernière mise à jour.",
+    );
+    renderSpreadLegend(box, { state: "none" });
+    expect(caption()).toBe("Aucun foyer actif avec un vent prévu : pas d'estimation.");
+    renderSpreadLegend(box, { state: "loading" });
+    expect(caption()).toBe("Chargement de la météo des foyers…");
+    renderSpreadLegend(box, { state: "unavailable", reason: "non publiée" });
+    expect(caption()).toBe("Estimation impossible : météo des foyers indisponible (non publiée).");
+  });
+
+  it("credits the AROME wind it uses, once", () => {
+    renderAttribution(box, "osm", false, false, true);
+    expect(box.textContent).toContain(
+      "| Propagation estimée avec le vent du modèle AROME HD de Météo-France, données Open-Meteo.com |",
+    );
+    renderAttribution(box, "osm", true, false, true);
+    expect(box.textContent).not.toContain("Propagation estimée");
+    expect(box.textContent).toContain(
+      "Vent modèle AROME HD de Météo-France, données Open-Meteo.com",
+    );
   });
 });

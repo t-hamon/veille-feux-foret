@@ -6,6 +6,7 @@ import { BASEMAPS } from "./basemaps";
 import type { BurnedArea, Detection, Foyer, LoadResult, Status, Summary } from "./data";
 import { type FireWeather, type WeatherSample, nextHours, sampleAt } from "./fireweather";
 import * as format from "./format";
+import { SPREAD_FRACTIONS, SPREAD_HOURS, type SpreadEstimate, breadthKm } from "./spread";
 import type { Station, StationSample } from "./stations";
 import type { Basemap } from "./share";
 import { type SourceGroup, ageMinutes, freshness, groupOf, health } from "./status";
@@ -394,6 +395,120 @@ export function renderFoyerStation(container: HTMLElement, model: FoyerStationMo
   );
 }
 
+// ---------------------------------------------------------- estimated spread
+
+const PERCENTS = SPREAD_FRACTIONS.map((f) => `${String(Math.round(f * 100))} %`);
+
+export const SPREAD_METHOD = `Estimation non officielle, ordre de grandeur : la tête du feu avancerait de ${PERCENTS[0] ?? ""} à ${PERCENTS[1] ?? ""} du vent moyen prévu à 10 m (modèle de Valabre, Sauvagnargues-Lesage et al. 2001 ; Cruz et Alexander 2019), avec la forme en ellipse du système canadien FBP (1992).`;
+
+export const SPREAD_LIMITS =
+  "Elle surestime quand la végétation est humide, sous-estime les feux d'herbe et ne tient compte ni du relief, ni des sautes de feu, ni de la lutte. Seules les consignes des préfectures et des services de secours font foi.";
+
+export type FoyerSpreadModel =
+  | { state: "loading" }
+  | { state: "unavailable"; reason: string }
+  | { state: "inactive" }
+  | { state: "noweather" }
+  | { state: "ok"; total: SpreadEstimate; shown: SpreadEstimate | null };
+
+function kmRange(a: number, b: number): string {
+  return `${format.decimal(a)} à ${format.decimal(b)} km`;
+}
+
+export function renderFoyerSpread(container: HTMLElement, model: FoyerSpreadModel): void {
+  container.replaceChildren(el("h4", {}, "Propagation estimée (non officielle)"));
+  if (model.state !== "ok") {
+    const text =
+      model.state === "loading"
+        ? "Chargement de la météo du foyer…"
+        : model.state === "unavailable"
+          ? `Estimation impossible : météo des foyers indisponible (${model.reason}).`
+          : model.state === "inactive"
+            ? "Estimation faite seulement pour les foyers actifs, avec une détection dans les 6 heures précédant la mise à jour."
+            : `Estimation impossible : vent prévu manquant au foyer sur les ${String(SPREAD_HOURS)} heures après la mise à jour.`;
+    container.append(el("p", { class: "muted" }, text));
+    return;
+  }
+  const { total, shown } = model;
+  const [low, high] = total.paths;
+  container.append(
+    el(
+      "dl",
+      {},
+      ...row(
+        `Sur les ${String(SPREAD_HOURS)} heures après la mise à jour`,
+        `avancée de ${kmRange(low.km, high.km)}`,
+      ),
+      ...row(
+        "Direction de l'avancée",
+        `${compassPoint(total.towards)} (${String(Math.round(total.towards))}°)`,
+      ),
+      ...row(
+        "Largeur à 6 heures",
+        kmRange(breadthKm(low, total.ratio), breadthKm(high, total.ratio)),
+      ),
+      ...(shown === null
+        ? []
+        : row(
+            `À ${format.hour(new Date(shown.at * 1000))}`,
+            `avancée de ${kmRange(shown.paths[0].km, shown.paths[1].km)}`,
+          )),
+      ...row("Vent moyen prévu", `${kmh(total.speed)}, ${MODEL_NAME}`),
+    ),
+    el("p", { class: "muted" }, SPREAD_METHOD),
+    el("p", { class: "muted" }, SPREAD_LIMITS),
+  );
+}
+
+export type SpreadLegendModel =
+  | { state: "loading" }
+  | { state: "unavailable"; reason: string }
+  | { state: "past" }
+  | { state: "none" }
+  | { state: "ok"; time: Date; count: number; capped: boolean };
+
+/** Legend of the estimated spread layer. */
+export function renderSpreadLegend(container: HTMLElement, model: SpreadLegendModel): void {
+  container.replaceChildren(el("h3", { class: "legend-title" }, "Propagation estimée"));
+  container.dataset["state"] = model.state;
+  container.append(
+    el(
+      "ul",
+      { class: "legend-list" },
+      el(
+        "li",
+        {},
+        el("span", { class: "swatch swatch-spread-low", "aria-hidden": "true" }),
+        `estimation basse (${PERCENTS[0] ?? ""} du vent)`,
+      ),
+      el(
+        "li",
+        {},
+        el("span", { class: "swatch swatch-spread-high", "aria-hidden": "true" }),
+        `estimation haute (${PERCENTS[1] ?? ""} du vent)`,
+      ),
+      el(
+        "li",
+        {},
+        el("span", { class: "swatch swatch-spread-path", "aria-hidden": "true" }),
+        `trajet de la tête du feu sur ${String(SPREAD_HOURS)} heures`,
+      ),
+    ),
+  );
+  const text =
+    model.state === "loading"
+      ? "Chargement de la météo des foyers…"
+      : model.state === "unavailable"
+        ? `Estimation impossible : météo des foyers indisponible (${model.reason}).`
+        : model.state === "past"
+          ? "Estimation seulement sur les heures de prévision : avancez la frise après la dernière mise à jour."
+          : model.state === "none"
+            ? "Aucun foyer actif avec un vent prévu : pas d'estimation."
+            : `${String(model.count)} foyer${model.count > 1 ? "s" : ""} actif${model.count > 1 ? "s" : ""}, estimation à ${format.hour(model.time)}${model.capped ? `, la dernière heure estimée (${String(SPREAD_HOURS)} heures après la mise à jour)` : ""}. La fiche d'un foyer en donne les limites.`;
+  container.append(el("p", { class: "legend-caption" }, text));
+  container.append(el("p", { class: "legend-caption" }, SPREAD_METHOD));
+}
+
 const OPEN_METEO = "https://open-meteo.com/";
 const MODEL_NAME = "modèle AROME HD de Météo-France";
 
@@ -635,6 +750,7 @@ export function renderDetail(container: HTMLElement, selection: Selection, now: 
       // slider already says the instant.
       el("section", { class: "foyer-weather", "aria-live": "off" }),
       el("section", { class: "foyer-station", "aria-live": "off" }),
+      el("section", { class: "foyer-propagation", "aria-live": "off" }),
     );
     return;
   }
@@ -729,6 +845,7 @@ export function renderAttribution(
   basemap: Basemap,
   wind = false,
   stations = false,
+  spread = false,
 ): void {
   container.replaceChildren();
   const parts: Node[] = [];
@@ -745,6 +862,12 @@ export function renderAttribution(
     parts.push(link("Open-Meteo.com", OPEN_METEO));
   }
   if (stations) parts.push(document.createTextNode(" | Vent mesuré Météo-France"));
+  if (spread && !wind) {
+    parts.push(
+      document.createTextNode(` | Propagation estimée avec le vent du ${MODEL_NAME}, données `),
+    );
+    parts.push(link("Open-Meteo.com", OPEN_METEO));
+  }
   parts.push(document.createTextNode(" | "));
   parts.push(link("MapLibre", "https://maplibre.org/"));
   container.append(...parts);
