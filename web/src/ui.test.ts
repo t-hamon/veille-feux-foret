@@ -621,7 +621,7 @@ describe("estimated spread", () => {
   const km = (value: number) => String(Number(value.toFixed(1))).replace(".", ",");
 
   it("gives the range over 6 hours, the hour shown, its method and its limits", () => {
-    renderFoyerSpread(box, { state: "ok", total, shown });
+    renderFoyerSpread(box, { state: "ok", total, shown, moisture: null });
     expect(box.querySelector("h4")?.textContent).toBe("Propagation estimée (non officielle)");
     const text = box.textContent;
     expect(text).toContain(
@@ -646,8 +646,37 @@ describe("estimated spread", () => {
     expect(text).toContain(
       "Seules les consignes des préfectures et des services de secours font foi.",
     );
-    renderFoyerSpread(box, { state: "ok", total, shown: null });
+    expect(text).toContain("Humidité des combustibles fins mortsinconnue à cette heure");
+    expect(text).toContain("code horaire FFMC du système canadien FWI2025");
+    expect(box.querySelector(".foyer-propagation-humidite")).toBeNull();
+    renderFoyerSpread(box, { state: "ok", total, shown: null, moisture: null });
     expect(box.textContent).not.toContain("À 05:00");
+  });
+
+  it("gives the moisture of the dead fine fuels and what it means for the rule", () => {
+    // 03:00 UTC, 05:00 in Paris.
+    const time = Date.UTC(2026, 9, 12, 3) / 1000;
+    renderFoyerSpread(box, {
+      state: "ok",
+      total,
+      shown,
+      moisture: { time, code: 73.4, moisture: 30.7 },
+    });
+    expect(box.textContent).toContain(
+      "Humidité des combustibles fins morts à 05:0030,7 % (FFMC 73,4)",
+    );
+    expect(box.querySelector(".foyer-propagation-humidite")?.textContent).toBe(
+      "Plus de 7,5 % d'humidité : selon Cruz et Alexander (2019), la règle du vent surestime alors nettement l'avancée ; le couloir est dessiné plus pâle.",
+    );
+    renderFoyerSpread(box, {
+      state: "ok",
+      total,
+      shown,
+      moisture: { time, code: 93.3, moisture: 7.5 },
+    });
+    expect(box.querySelector(".foyer-propagation-humidite")?.textContent).toBe(
+      "7,5 % d'humidité ou moins : conditions sèches, où Cruz et Alexander (2019) ont vérifié la règle du vent.",
+    );
   });
 
   it("explains why a fire has no estimate", () => {
@@ -679,6 +708,7 @@ describe("estimated spread", () => {
       state: "ok",
       time: new Date(Date.UTC(2026, 9, 12, 3) * 1),
       count: 1,
+      humid: 0,
       capped: false,
     });
     expect(box.querySelector("h3")?.textContent).toBe("Propagation estimée");
@@ -687,8 +717,9 @@ describe("estimated spread", () => {
       "estimation basse (3 % du vent)",
       "estimation haute (8 % du vent)",
       "trajet de la tête du feu sur 6 heures",
+      "plus pâle : combustibles fins morts à plus de 7,5 % d'humidité, estimation probablement trop forte",
     ]);
-    expect(box.querySelectorAll("[aria-hidden='true']")).toHaveLength(3);
+    expect(box.querySelectorAll("[aria-hidden='true']")).toHaveLength(4);
     expect(caption()).toBe(
       "1 foyer actif, estimation à 05:00. La fiche d'un foyer en donne les limites.",
     );
@@ -697,10 +728,20 @@ describe("estimated spread", () => {
       state: "ok",
       time: new Date(Date.UTC(2026, 9, 12, 6, 43) * 1),
       count: 3,
+      humid: 3,
       capped: true,
     });
     expect(caption()).toBe(
-      "3 foyers actifs, estimation à 08:43, la dernière heure estimée (6 heures après la mise à jour). La fiche d'un foyer en donne les limites.",
+      "3 foyers actifs, estimation à 08:43, la dernière heure estimée (6 heures après la mise à jour), tous en végétation morte humide. La fiche d'un foyer en donne les limites.",
+    );
+    const ok = { state: "ok", time: new Date(Date.UTC(2026, 9, 12, 3)), capped: false } as const;
+    renderSpreadLegend(box, { ...ok, count: 3, humid: 1 });
+    expect(caption()).toBe(
+      "3 foyers actifs, estimation à 05:00, dont 1 en végétation morte humide. La fiche d'un foyer en donne les limites.",
+    );
+    renderSpreadLegend(box, { ...ok, count: 1, humid: 1 });
+    expect(caption()).toBe(
+      "1 foyer actif, estimation à 05:00, en végétation morte humide. La fiche d'un foyer en donne les limites.",
     );
     renderSpreadLegend(box, { state: "past" });
     expect(caption()).toBe(

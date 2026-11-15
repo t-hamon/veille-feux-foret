@@ -14,7 +14,15 @@ import {
   parseStatus,
   parseSummary,
 } from "./data";
-import { type FireWeatherFile, distanceKm, parseFireWeather, weatherHour } from "./fireweather";
+import {
+  DRY_LIMIT,
+  type FireWeatherFile,
+  type FuelMoisture,
+  distanceKm,
+  fuelMoistureAt,
+  parseFireWeather,
+  weatherHour,
+} from "./fireweather";
 import * as format from "./format";
 import type { MapHandle, Picked, SpreadShape, StationMarker } from "./map";
 import { AGE_COLOURS, WIND_COLOURS } from "./palette";
@@ -593,6 +601,21 @@ function spreadOf(foyer: Foyer, at: number, now: number): SpreadEstimate | null 
   return weather ? spreadAt(weather, [foyer.lat, foyer.lon], now, at) : null;
 }
 
+/** Moisture of the dead fine fuels at the hour of the weather of a cluster closest to `at`. */
+function moistureOf(foyer: Foyer, at: number): FuelMoisture | null {
+  if (fireWeather?.state !== "ok") return null;
+  const weather = fireWeather.value.fires.get(foyer.id);
+  if (!weather) return null;
+  const hour = weatherHour(weather, at);
+  return hour === null ? null : fuelMoistureAt(weather, hour);
+}
+
+/** True when the dead fine fuels are known to be wetter than the dry limit. */
+function humidAt(foyer: Foyer, at: number): boolean {
+  const moisture = moistureOf(foyer, at);
+  return moisture !== null && moisture.moisture > DRY_LIMIT;
+}
+
 function lonLat(points: [number, number][]): [number, number][] {
   return points.map(([lat, lon]) => [lon, lat]);
 }
@@ -609,6 +632,7 @@ function spreadShapes(): SpreadShape[] {
       foyer: foyer.id,
       rings: shown.rings,
       paths: total.paths.map((p) => lonLat(p.points)),
+      humid: humidAt(foyer, when.at),
     });
   }
   return shapes;
@@ -624,9 +648,15 @@ function spreadLegendModel(): SpreadLegendModel {
   }
   const when = spreadInstant();
   if (when === null) return { state: "past" };
-  const count = allFoyers.filter((f) => spreadOf(f, when.at, when.now) !== null).length;
-  if (count === 0) return { state: "none" };
-  return { state: "ok", time: new Date(when.at * 1000), count, capped: when.capped };
+  const shown = allFoyers.filter((f) => spreadOf(f, when.at, when.now) !== null);
+  if (shown.length === 0) return { state: "none" };
+  return {
+    state: "ok",
+    time: new Date(when.at * 1000),
+    count: shown.length,
+    humid: shown.filter((f) => humidAt(f, when.at)).length,
+    capped: when.capped,
+  };
 }
 
 function foyerSpreadModel(foyer: Foyer): FoyerSpreadModel {
@@ -647,6 +677,7 @@ function foyerSpreadModel(foyer: Foyer): FoyerSpreadModel {
     state: "ok",
     total,
     shown: when === null || when.capped ? null : spreadOf(foyer, when.at, when.now),
+    moisture: moistureOf(foyer, when?.at ?? range.now),
   };
 }
 
