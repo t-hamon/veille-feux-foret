@@ -74,7 +74,7 @@ Ce sont exactement les quatre entrées du code d'humidité des combustibles fins
 **FWI2025 : code cffdrs-ng (licence MPL-2.0)**, code Python lu, rien repris :
 - FFMC horaire sur l'échelle de 1985, avec un taux de séchage de 0,1158 au lieu de 0,0579 : c'est le doublement annoncé par GLC-X-42.
 - Pluie : la même formule de mouillage que le rapport de 1985, appliquée heure par heure, avec l'interception de 0,5 mm.
-- **Écart à trancher :** le code remet le seuil d'interception à zéro à la cinquième heure sèche consécutive, le rapport parle de six heures sans pluie. Il faudra trancher par un test avant de coder.
+- **Écart tranché le 15 novembre 2026 :** le code remet le seuil d'interception à zéro à la cinquième heure sèche consécutive, le rapport parle de six heures sans pluie ; la comparaison sur le jeu d'essai de cffdrs-ng confirme l'écart. J'ai retenu le rapport (six heures).
 - Le README du dépôt précise que le FWI2025 ne doit pas servir d'entrée au système FBP. Cela ne gêne pas un simple signalement d'humidité, qui n'utilise pas FBP.
 
 **Seuils équivalents.** Avec la formule de 1985 :
@@ -187,6 +187,9 @@ Aucune option ne change la fourchette de 3 à 8 % : aucune source lue ne permet 
   - FWI2025 réécrit à partir de Van Wagner 1977, du rapport technique 33 et de GLC-X-42, comparé au code cffdrs-ng sans le copier ;
   - calcul dans le pipeline, écrit dans `meteo-foyers.json` ;
   - affichage d'une phrase, du FFMC et de l'humidité dans la fiche, et d'un couloir plus pâle au-dessus de 7,5 % d'humidité.
+- **Choix pour B1, après lecture de NOR-X-424 (15 novembre 2026) :**
+  - jeux d'essai de NOR-X-424 (tableau 7) et de cffdrs-ng comparés dans l'espace de développement, sans être publiés dans le dépôt ;
+  - interception de la pluie selon le rapport GLC-X-42 : six heures sans pluie avant un nouvel épisode.
 - **Règle commune :** chaque partie commence par ses lectures (partie 5). Ce qui ne peut pas être sourcé n'est pas codé et reste écrit comme une limite.
 
 ### B0. Ne rien ajouter (non retenue)
@@ -252,7 +255,7 @@ Aucune option ne change la fourchette de 3 à 8 % : aucune source lue ne permet 
 
 | Pour | À lire ou à ouvrir |
 |---|---|
-| B1 | rapport NOR-X-424 (lien que j'ai trouvé, contenu non lu) ; données d'essai du code cffdrs-ng, pour trancher l'écart sur l'interception |
+| B1 | fait dans la partie 8 du lot 2 : NOR-X-424 lu, équations vérifiées sur son tableau 7 et sur le jeu d'essai de cffdrs-ng (résultats dans `TESTS.md`). NOR-X-424 cite PS-X-58 avec une adresse (cfs.nrcan.gc.ca, publication 23602), injoignable depuis l'espace de développement ; le rapport technique 33 le remplace pour la pluie |
 | B3 | page officielle du RGE ALTI (licence, pas, formats) ; teneur en eau du feuillage dans FBP 1992 ; tables de Rothermel (1983) |
 | B2 | descriptif de contenu de BD Forêt V2 (liste des 32 postes) ; licence de la version enrichie pour Provence-Alpes-Côte d'Azur ; fiches de Corine Land Cover et d'OSO ; sources françaises de verdure de l'herbe par satellite ; rayonnement solaire d'AROME |
 | B4 | documentation et licence de l'API Météo des forêts |
@@ -272,6 +275,7 @@ Lues le 14 novembre 2026, sauf mention contraire.
 | cffdrs-ng, `FWI/Python/NG_FWI.py` et README (commit ed143d7) | fonctions FFMC, pluie et herbe ; rien repris | MPL-2.0 |
 | Lettre d'information FWI2025 (mars 2025) | entière | non indiquée |
 | Canadian Forest Service Fire Danger Group (2025). The 2025 Update to the FWI System: Structure, Changes and Interpretation. Information Report GLC-X-42 | rapport entier, lu le 15 novembre 2026 | reproduction non commerciale avec attribution |
+| Wang Y., Anderson K.R., Suddaby R.M. (2015). Updated source code for calculating fire danger indices in the Canadian Forest Fire Weather Index System. Information Report NOR-X-424 | rapport entier, lu le 15 novembre 2026 | reproduction non commerciale avec attribution |
 | BD Forêt V2, fiches IGN et data.gouv ; présentation IGN du 19 janvier 2021 | fiches | Licence Ouverte 2.0 |
 | Plaquette BD Forêt enrichie, Observatoire de la forêt méditerranéenne (2018) | entière | non vérifiée |
 | FirEUrisk European fuel map, e-cienciaDatos, DOI 10.21950/YABYCN | fiche | CC BY 4.0 |
@@ -283,5 +287,4 @@ Lues le 14 novembre 2026, sauf mention contraire.
 
 Non lus :
 - le rapport PS-X-58 (introuvable) ;
-- le rapport NOR-X-424 ;
 - les articles Liu et al. 2026 et Baehr et al. 2026 (non retrouvés).
