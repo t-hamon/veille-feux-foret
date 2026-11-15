@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 
 from tests.helpers import fixture_bytes
-from veille_feux import geo, meteo, sources
+from veille_feux import fuel_moisture, geo, meteo, sources
 from veille_feux.foyers import Foyer
 from veille_feux.meteo import MeteoFormatError
 
@@ -241,6 +241,32 @@ def test_fire_entry_rounds_each_variable() -> None:
     assert entry["humidity"][:2] == [48, 57]
     assert isinstance(entry["precipitation"][0], float)
     assert meteo.previous_fire_entries({"fires": [entry]}) == {(43.53, 5.45): entry}
+
+
+def test_fire_entry_adds_the_fine_fuel_moisture_of_each_hour() -> None:
+    aix = meteo.trim(parse_sample()[0])[0]
+    entry = meteo.fire_entry(foyer(4, 43.52971, 5.44738, NOW), aix, None, NOW)
+    codes, contents = entry["ffmc"], entry["fine_fuel_moisture"]
+    assert len(codes) == len(contents) == entry["hours"]
+    # Computed from the values as written in the file.
+    fuel = fuel_moisture.hourly_fine_fuel_moisture(
+        entry["temperature"], entry["humidity"], entry["speed"], entry["precipitation"]
+    )
+    assert codes == [None if v is None else round(v, 1) for v in fuel.code]
+    assert contents == [None if v is None else round(v, 1) for v in fuel.moisture]
+    known = [c for c in codes if c is not None]
+    assert known and all(0 <= c <= 101 for c in known)
+
+
+def test_fire_entry_moisture_stops_at_a_missing_value() -> None:
+    def gap(d: Any) -> None:
+        d[0]["hourly"]["relative_humidity_2m"][30] = None
+
+    aix = meteo.trim(parse_sample(broken(gap))[0])[0]
+    entry = meteo.fire_entry(foyer(4, 43.52971, 5.44738, NOW), aix, None, NOW)
+    assert entry["ffmc"][29] is not None
+    assert all(v is None for v in entry["ffmc"][30:])
+    assert all(v is None for v in entry["fine_fuel_moisture"][30:])
 
 
 def test_recent_fires_and_their_points() -> None:
