@@ -61,6 +61,8 @@ Choix du mainteneur, 15 novembre 2026 : formule FWI2025 réécrite à partir des
 
 Captures dans `docs/captures/lot-2/`, prises dans l'espace de développement par Playwright (Chromium), fond uni gris et police de substitution comme pour les parties 6c et 7, foyers marqués actifs, à 08:00, dernière heure de la frise : `propagation-humidite-carte-bureau.png` et `propagation-humidite-carte-mobile.png` (couloir plus pâle : le foyer 1 est à 30,7 % d'humidité après une nuit humide), `propagation-humidite-fiche-bureau.png` et `propagation-humidite-fiche-mobile.png`, `propagation-humidite-legende-bureau.png`.
 
+Poste Windows du mainteneur, 23 novembre 2026 vers 03:20 (heure de Paris), branche appliquée sur `main` par `git am` (arbre identique à celui de la branche) : pytest sous Python 3.12.10, 323 tests réussis, `fuel_moisture.py` et `meteo.py` à 100 % des lignes ; Vitest, 161 tests réussis, `fireweather.ts` et `ui.ts` à 100 % des lignes ; build sous les budgets (`index` 21,22 ko gzip et `map` 6,75 ko gzip selon Vite) ; Playwright sur les 5 profils (Chromium, Firefox et WebKit, desktop et mobile), 397 scénarios réussis, 3 ignorés volontairement (navigation clavier sur mobile et WebKit), aucun échec ; le nouveau scénario du fichier sans humidité réussi sur les 5 profils.
+
 | Non exécuté | Raison | Quand |
 |---|---|---|
 | Playwright avec le Chromium de la version 1.64.1, Firefox et WebKit dans l'espace de développement | non téléchargeables | poste Windows ; CI de la PR |
