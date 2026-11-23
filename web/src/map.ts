@@ -81,6 +81,8 @@ export interface SpreadShape {
   foyer: number;
   rings: ([number, number][] | null)[];
   paths: [number, number][][];
+  /** Dead fine fuels known to be wetter than the dry limit at the hour shown: drawn paler. */
+  humid: boolean;
 }
 
 /** A station shown with the wind it measured at the hour of the instant. */
@@ -225,7 +227,7 @@ function spreadCollection(shapes: SpreadShape[]): Collection {
       features.push({
         type: "Feature",
         geometry: { type: "Polygon", coordinates: [ring] },
-        properties: { foyer: shape.foyer, part: k === 0 ? "bas" : "haut" },
+        properties: { foyer: shape.foyer, part: k === 0 ? "bas" : "haut", humide: shape.humid },
       });
     });
     shape.paths.forEach((path, k) => {
@@ -233,7 +235,11 @@ function spreadCollection(shapes: SpreadShape[]): Collection {
       features.push({
         type: "Feature",
         geometry: { type: "LineString", coordinates: path },
-        properties: { foyer: shape.foyer, part: k === 0 ? "trajet-bas" : "trajet-haut" },
+        properties: {
+          foyer: shape.foyer,
+          part: k === 0 ? "trajet-bas" : "trajet-haut",
+          humide: shape.humid,
+        },
       });
     });
   }
@@ -290,6 +296,11 @@ const SOURCES = {
   spread: "vff-propagation",
 } as const;
 
+// A corridor whose dead fine fuels are wetter than the dry limit is drawn
+// paler: the rule probably overpredicts there. The panel and the legend say it
+// in words.
+const HUMID_LINE_OPACITY = 0.45;
+
 /**
  * The estimated spread, under every layer of real data (burned areas,
  * outlines, detections, foyers, wind and stations): light fills, the high
@@ -304,7 +315,13 @@ function spreadLayers(): LayerSpecification[] {
       filter: ["in", ["get", "part"], ["literal", ["bas", "haut"]]],
       paint: {
         "fill-color": SPREAD_COLOUR,
-        "fill-opacity": ["match", ["get", "part"], "bas", 0.22, 0.1],
+        "fill-opacity": [
+          "match",
+          ["get", "part"],
+          "bas",
+          ["case", ["get", "humide"], 0.1, 0.22],
+          ["case", ["get", "humide"], 0.05, 0.1],
+        ],
       },
     },
     {
@@ -315,6 +332,7 @@ function spreadLayers(): LayerSpecification[] {
       paint: {
         "line-color": SPREAD_COLOUR,
         "line-width": ["match", ["get", "part"], "bas", 1.5, 1],
+        "line-opacity": ["case", ["get", "humide"], HUMID_LINE_OPACITY, 1],
       },
     },
     {
@@ -322,7 +340,12 @@ function spreadLayers(): LayerSpecification[] {
       type: "line",
       source: SOURCES.spread,
       filter: ["in", ["get", "part"], ["literal", ["trajet-bas", "trajet-haut"]]],
-      paint: { "line-color": SPREAD_COLOUR, "line-width": 1.5, "line-dasharray": [2, 2] },
+      paint: {
+        "line-color": SPREAD_COLOUR,
+        "line-width": 1.5,
+        "line-dasharray": [2, 2],
+        "line-opacity": ["case", ["get", "humide"], HUMID_LINE_OPACITY, 1],
+      },
     },
   ];
 }

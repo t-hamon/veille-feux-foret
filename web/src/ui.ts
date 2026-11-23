@@ -4,7 +4,14 @@
 
 import { BASEMAPS } from "./basemaps";
 import type { BurnedArea, Detection, Foyer, LoadResult, Status, Summary } from "./data";
-import { type FireWeather, type WeatherSample, nextHours, sampleAt } from "./fireweather";
+import {
+  DRY_LIMIT,
+  type FireWeather,
+  type FuelMoisture,
+  type WeatherSample,
+  nextHours,
+  sampleAt,
+} from "./fireweather";
 import * as format from "./format";
 import { SPREAD_FRACTIONS, SPREAD_HOURS, type SpreadEstimate, breadthKm } from "./spread";
 import type { Station, StationSample } from "./stations";
@@ -404,12 +411,27 @@ export const SPREAD_METHOD = `Estimation non officielle, ordre de grandeur : la 
 export const SPREAD_LIMITS =
   "Elle surestime quand la végétation est humide, sous-estime les feux d'herbe et ne tient compte ni du relief, ni des sautes de feu, ni de la lutte. Seules les consignes des préfectures et des services de secours font foi.";
 
+const DRY_LIMIT_TEXT = `${format.decimal(DRY_LIMIT)} %`;
+
+export const FUEL_METHOD =
+  "Humidité des combustibles fins morts : code horaire FFMC du système canadien FWI2025 (Van Wagner 1977 ; rapport GLC-X-42, 2025), calculé sur 7 jours de météo AROME au foyer. Un ordre de grandeur, pas une mesure.";
+
+export const FUEL_HUMID = `Plus de ${DRY_LIMIT_TEXT} d'humidité : selon Cruz et Alexander (2019), la règle du vent surestime alors nettement l'avancée ; le couloir est dessiné plus pâle.`;
+
+export const FUEL_DRY = `${DRY_LIMIT_TEXT} d'humidité ou moins : conditions sèches, où Cruz et Alexander (2019) ont vérifié la règle du vent.`;
+
 export type FoyerSpreadModel =
   | { state: "loading" }
   | { state: "unavailable"; reason: string }
   | { state: "inactive" }
   | { state: "noweather" }
-  | { state: "ok"; total: SpreadEstimate; shown: SpreadEstimate | null };
+  | {
+      state: "ok";
+      total: SpreadEstimate;
+      shown: SpreadEstimate | null;
+      /** Moisture of the dead fine fuels at the hour shown, or at the update. */
+      moisture: FuelMoisture | null;
+    };
 
 function kmRange(a: number, b: number): string {
   return `${format.decimal(a)} à ${format.decimal(b)} km`;
@@ -429,7 +451,7 @@ export function renderFoyerSpread(container: HTMLElement, model: FoyerSpreadMode
     container.append(el("p", { class: "muted" }, text));
     return;
   }
-  const { total, shown } = model;
+  const { total, shown, moisture } = model;
   const [low, high] = total.paths;
   container.append(
     el(
@@ -454,8 +476,24 @@ export function renderFoyerSpread(container: HTMLElement, model: FoyerSpreadMode
             `avancée de ${kmRange(shown.paths[0].km, shown.paths[1].km)}`,
           )),
       ...row("Vent moyen prévu", `${kmh(total.speed)}, ${MODEL_NAME}`),
+      ...(moisture === null
+        ? row("Humidité des combustibles fins morts", "inconnue à cette heure")
+        : row(
+            `Humidité des combustibles fins morts à ${format.hour(new Date(moisture.time * 1000))}`,
+            `${format.decimal(moisture.moisture)} % (FFMC ${format.decimal(moisture.code)})`,
+          )),
     ),
+    ...(moisture === null
+      ? []
+      : [
+          el(
+            "p",
+            { class: "foyer-propagation-humidite" },
+            moisture.moisture > DRY_LIMIT ? FUEL_HUMID : FUEL_DRY,
+          ),
+        ]),
     el("p", { class: "muted" }, SPREAD_METHOD),
+    el("p", { class: "muted" }, FUEL_METHOD),
     el("p", { class: "muted" }, SPREAD_LIMITS),
   );
 }
@@ -465,7 +503,15 @@ export type SpreadLegendModel =
   | { state: "unavailable"; reason: string }
   | { state: "past" }
   | { state: "none" }
-  | { state: "ok"; time: Date; count: number; capped: boolean };
+  | { state: "ok"; time: Date; count: number; humid: number; capped: boolean };
+
+function humidText(humid: number, count: number): string {
+  if (humid === 0) return "";
+  if (humid === count) {
+    return count > 1 ? ", tous en végétation morte humide" : ", en végétation morte humide";
+  }
+  return `, dont ${String(humid)} en végétation morte humide`;
+}
 
 /** Legend of the estimated spread layer. */
 export function renderSpreadLegend(container: HTMLElement, model: SpreadLegendModel): void {
@@ -493,6 +539,12 @@ export function renderSpreadLegend(container: HTMLElement, model: SpreadLegendMo
         el("span", { class: "swatch swatch-spread-path", "aria-hidden": "true" }),
         `trajet de la tête du feu sur ${String(SPREAD_HOURS)} heures`,
       ),
+      el(
+        "li",
+        {},
+        el("span", { class: "swatch swatch-spread-humid", "aria-hidden": "true" }),
+        `plus pâle : combustibles fins morts à plus de ${DRY_LIMIT_TEXT} d'humidité, estimation probablement trop forte`,
+      ),
     ),
   );
   const text =
@@ -504,7 +556,7 @@ export function renderSpreadLegend(container: HTMLElement, model: SpreadLegendMo
           ? "Estimation seulement sur les heures de prévision : avancez la frise après la dernière mise à jour."
           : model.state === "none"
             ? "Aucun foyer actif avec un vent prévu : pas d'estimation."
-            : `${String(model.count)} foyer${model.count > 1 ? "s" : ""} actif${model.count > 1 ? "s" : ""}, estimation à ${format.hour(model.time)}${model.capped ? `, la dernière heure estimée (${String(SPREAD_HOURS)} heures après la mise à jour)` : ""}. La fiche d'un foyer en donne les limites.`;
+            : `${String(model.count)} foyer${model.count > 1 ? "s" : ""} actif${model.count > 1 ? "s" : ""}, estimation à ${format.hour(model.time)}${model.capped ? `, la dernière heure estimée (${String(SPREAD_HOURS)} heures après la mise à jour)` : ""}${humidText(model.humid, model.count)}. La fiche d'un foyer en donne les limites.`;
   container.append(el("p", { class: "legend-caption" }, text));
   container.append(el("p", { class: "legend-caption" }, SPREAD_METHOD));
 }

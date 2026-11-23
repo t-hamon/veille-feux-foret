@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
 import meteoFile from "../e2e/fixtures/vent/meteo-foyers.json?raw";
 import { DATA_FILES, DataFormatError } from "./data";
-import { distanceKm, nextHours, parseFireWeather, sampleAt, weatherHour } from "./fireweather";
+import {
+  DRY_LIMIT,
+  distanceKm,
+  fuelMoistureAt,
+  nextHours,
+  parseFireWeather,
+  sampleAt,
+  weatherHour,
+} from "./fireweather";
 
 // meteo-foyers.json written by the pipeline from the capture of 12 October 2026.
 function copy(): Record<string, unknown> {
@@ -57,6 +65,8 @@ describe("weather file of the fires", () => {
       ["hours", 213],
       ["temperature", null],
       ["gusts", [1, 2]],
+      ["ffmc", [1, 2]],
+      ["fine_fuel_moisture", "humide"],
     ];
     for (const [key, value] of cases) {
       const document = copy();
@@ -94,10 +104,50 @@ describe("weather file of the fires", () => {
     expect(parsed.rejected).toBe(3);
   });
 
+  it("reads the moisture of the dead fine fuels, absent from older files", () => {
+    expect(weather.ffmc).toHaveLength(214);
+    expect(weather.moisture).toHaveLength(214);
+    const document = copy();
+    const entry = firstEntry(document);
+    delete entry["ffmc"];
+    delete entry["fine_fuel_moisture"];
+    const parsed = parseFireWeather(document);
+    expect(parsed.rejected).toBe(0);
+    expect(parsed.file.fires.get(1)?.ffmc).toBeNull();
+    expect(parsed.file.fires.get(1)?.moisture).toBeNull();
+  });
+
+  it("leaves a moisture out of its range empty, and counts it", () => {
+    const document = copy();
+    const entry = firstEntry(document);
+    (entry["ffmc"] as unknown[])[0] = 101.5;
+    (entry["fine_fuel_moisture"] as unknown[])[1] = -1;
+    const parsed = parseFireWeather(document);
+    expect(parsed.file.fires.get(1)?.ffmc?.[0]).toBeNull();
+    expect(parsed.file.fires.get(1)?.moisture?.[1]).toBeNull();
+    expect(parsed.rejected).toBe(2);
+  });
+
   it("reads the clusters left without weather", () => {
     const parsed = parseFireWeather({ ...copy(), missing: [4, 7, -1] });
     expect([...parsed.file.missing]).toEqual([4, 7]);
     expect(parsed.rejected).toBe(1);
+  });
+});
+
+describe("moisture of the dead fine fuels", () => {
+  it("gives the code and the moisture of an hour, written by the pipeline", () => {
+    // 01:00 UTC on 12 October, after a night near 100 % humidity.
+    expect(fuelMoistureAt(weather, 169)).toEqual({ time: ONE_AM, code: 73.7, moisture: 30.2 });
+    expect(DRY_LIMIT).toBe(7.5);
+  });
+
+  it("gives nothing for an hour without value or a file without moisture", () => {
+    expect(fuelMoistureAt({ ...weather, ffmc: null }, 169)).toBeNull();
+    const moisture = [...(weather.moisture ?? [])];
+    moisture[169] = null;
+    expect(fuelMoistureAt({ ...weather, moisture }, 169)).toBeNull();
+    expect(fuelMoistureAt(weather, 500)).toBeNull();
   });
 });
 

@@ -4,7 +4,9 @@ Two files are written for the map:
 - the wind on a regular grid over France (speed, direction, gusts), for the
   animated wind and the wind at any point;
 - the weather at each fire cluster with a detection in the last 24 hours
-  (temperature, humidity, precipitation and wind), asked at the cluster itself.
+  (temperature, humidity, precipitation and wind), asked at the cluster itself,
+  with the hourly moisture of the dead fine fuels computed from it
+  (``fuel_moisture``).
 
 Every answer is checked before use: one entry per point asked, in the same
 order, close to the point asked, on the expected hourly time axis, in the
@@ -25,6 +27,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from veille_feux import fuel_moisture
 from veille_feux.foyers import Foyer
 from veille_feux.sources import PAST_HOURS
 
@@ -74,6 +77,10 @@ DECIMALS = {
 }
 # Longest answer accepted: 168 past hours, 60 forecast hours and a margin.
 MAX_HOURS = 400
+# Names in the file of the hourly code and moisture content of the dead fine
+# fuels, written to 0.1.
+FFMC_NAME = "ffmc"
+MOISTURE_NAME = "fine_fuel_moisture"
 
 
 class MeteoFormatError(ValueError):
@@ -308,7 +315,10 @@ def recent_fires(clusters: Iterable[Foyer], now: dt.datetime) -> list[Foyer]:
 def fire_entry(
     foyer: Foyer, point: PointSeries, run: dt.datetime | None, fetched_at: dt.datetime
 ) -> dict[str, Any]:
-    """Weather at one cluster. Each entry keeps the run and time it was fetched at."""
+    """Weather at one cluster, with the moisture of its dead fine fuels.
+
+    Each entry keeps the run and time it was fetched at.
+    """
     entry: dict[str, Any] = {
         "id": foyer.id,
         "point": list(fire_point(foyer)),
@@ -321,6 +331,12 @@ def fire_entry(
     }
     for name, column in point.values.items():
         entry[FILE_NAMES[name]] = _rounded(name, column)
+    inputs = ("temperature", "humidity", "speed", "precipitation")
+    if all(name in entry for name in inputs):
+        # From the values as written, so that the file can be checked.
+        fuel = fuel_moisture.hourly_fine_fuel_moisture(*(entry[name] for name in inputs))
+        entry[FFMC_NAME] = [None if v is None else round(v, 1) for v in fuel.code]
+        entry[MOISTURE_NAME] = [None if v is None else round(v, 1) for v in fuel.moisture]
     return entry
 
 

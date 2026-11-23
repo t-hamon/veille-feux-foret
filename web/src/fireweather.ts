@@ -4,6 +4,11 @@
 // update, hour by hour over the 7 past days and the forecast. Hours before the
 // run of the model are archived forecasts, not measurements.
 //
+// Each entry also carries the hourly moisture of the dead fine fuels that the
+// pipeline computes from these values: the hourly Fine Fuel Moisture Code of
+// the 2025 update of the Canadian Fire Weather Index System (FWI2025) and the
+// moisture content it stands for. A file written before it has neither.
+//
 // Checked like the other data files: a file whose structure does not match is
 // refused; an entry that does not match is dropped and counted; a value out of
 // its physical range is left empty and counted, never corrected.
@@ -31,7 +36,16 @@ export interface FireWeather {
   speed: (number | null)[];
   direction: (number | null)[];
   gusts: (number | null)[];
+  /** Hourly FFMC and moisture content of the dead fine fuels, %, or null when absent. */
+  ffmc: (number | null)[] | null;
+  moisture: (number | null)[] | null;
 }
+
+/**
+ * Moisture of the dead fine fuels above which the wind rule of thumb
+ * overpredicts, according to Cruz and Alexander (2019): 7.5 %.
+ */
+export const DRY_LIMIT = 7.5;
 
 export interface FireWeatherFile {
   fires: Map<number, FireWeather>;
@@ -65,6 +79,14 @@ const SERIES = {
 } as const;
 
 type SeriesName = keyof typeof SERIES;
+
+// Optional series, by name in the file: absent from older files.
+const FUEL = {
+  ffmc: { key: "ffmc", min: 0, max: 101 },
+  moisture: { key: "fine_fuel_moisture", min: 0, max: 250 },
+} as const;
+
+type FuelName = keyof typeof FUEL;
 
 function inArea(value: unknown): value is [number, number] {
   if (!Array.isArray(value) || value.length !== 2) return false;
@@ -131,6 +153,25 @@ function readEntry(entry: unknown, count: { rejected: number }): FireWeather | u
       return ok ? item : null;
     });
   }
+  const fuel = {} as Record<FuelName, (number | null)[] | null>;
+  for (const [name, bounds] of Object.entries(FUEL) as [FuelName, (typeof FUEL)[FuelName]][]) {
+    const raw = entry[bounds.key];
+    if (raw === undefined) {
+      fuel[name] = null;
+      continue;
+    }
+    if (!Array.isArray(raw) || raw.length !== h) return undefined;
+    fuel[name] = raw.map((item: unknown) => {
+      if (item === null) return null;
+      const ok =
+        typeof item === "number" &&
+        Number.isFinite(item) &&
+        item >= bounds.min &&
+        item <= bounds.max;
+      if (!ok) dropped += 1;
+      return ok ? item : null;
+    });
+  }
   count.rejected += dropped;
   return {
     id: id as number,
@@ -141,6 +182,7 @@ function readEntry(entry: unknown, count: { rejected: number }): FireWeather | u
     start: start as number,
     hours: h,
     ...series,
+    ...fuel,
   };
 }
 
@@ -212,6 +254,23 @@ export function sampleAt(weather: FireWeather, hour: number): WeatherSample {
     direction: weather.direction[hour] ?? null,
     gusts: weather.gusts[hour] ?? null,
   };
+}
+
+export interface FuelMoisture {
+  /** Hour of the values, seconds since 1970-01-01 UTC. */
+  time: number;
+  /** Fine Fuel Moisture Code. */
+  code: number;
+  /** Moisture content of the dead fine fuels, %. */
+  moisture: number;
+}
+
+/** Moisture of the dead fine fuels at an hour of the entry, when known. */
+export function fuelMoistureAt(weather: FireWeather, hour: number): FuelMoisture | null {
+  const code = weather.ffmc?.[hour] ?? null;
+  const moisture = weather.moisture?.[hour] ?? null;
+  if (code === null || moisture === null) return null;
+  return { time: weather.start + hour * 3600, code, moisture };
 }
 
 /** Values of the hours before and including `hour`, or null if one is missing. */

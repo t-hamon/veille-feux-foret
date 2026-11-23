@@ -26,8 +26,50 @@ Ce fichier consigne les tests du projet et les résultats des dernières exécut
 | Vent : lecture du fichier, particules, géométrie des traits et des flèches, légende et détail ; affichage, pause, mouvement réduit, frise, clic, fichier malformé ou absent | Vitest, Playwright, fichier de vent écrit par le pipeline | CI `web` et `e2e` |
 | Vent mesuré aux stations : lecture du fichier, heure de la mesure, station la plus proche, légende, détail d'une station, fiche d'un foyer ; affichage, frise, clic, fichier malformé ou absent | Vitest, Playwright, fichier des stations écrit par le pipeline | CI `web` et `e2e` |
 | Propagation estimée : rapport longueur sur largeur, trajet de la tête du feu, ellipse, heures couvertes ; couche, frise, fiche d'un foyer, légende, adresse, fichier malformé | Vitest, Playwright, météo des foyers écrite par le pipeline | CI `web` et `e2e` |
+| Humidité des combustibles fins morts : échelles du FFMC, pluie et interception par le couvert, séchage, mouillage, série horaire, valeur manquante ; écriture dans la météo des foyers ; lecture, fiche d'un foyer, légende, couloir pâle, fichier sans humidité | pytest, Vitest, Playwright, météo des foyers écrite par le pipeline | CI `pipeline`, `web` et `e2e` |
 
 Les contrôles de sécurité (gitleaks, semgrep, bandit, zizmor, OWASP ZAP) sont décrits dans [SECURITY.md](SECURITY.md).
+
+## Résultats du lot 2, partie 8 : humidité des combustibles morts
+
+Exécution du 15 novembre 2026 dans l'espace de développement, branche `lot-2/humidite-combustibles` partie de `main` (3dcdb69), Python 3.13.18, Node.js 24.22.2, scénarios Chromium avec le Chrome for Testing 153.0.8010.12 préinstallé. Données de test : scénario `vent` (capture du 12 octobre 2026), dont la météo des foyers a été écrite de nouveau par le pipeline : seules les deux nouvelles séries changent.
+
+Sources lues en entier avant le code : Van Wagner 1977 (PS-X-69) et rapport technique 33 (1985) le 14 novembre 2026 ; rapport GLC-X-42 (2025) et rapport NOR-X-424 (2015) le 15 novembre 2026. Le code cffdrs-ng a été lu, rien n'en est repris.
+
+| Test | Résultat |
+|---|---|
+| Chaque commit seul, avec sa propre copie du code | réussis pour les 3 commits : ruff, mypy strict, bandit et pytest du pipeline, avec et sans `GITHUB_ACTIONS=true`, outils CI lancés depuis `tools/`, Prettier, ESLint, tsc et Vitest |
+| pytest | 323 tests réussis, dont 13 nouveaux : échelles du FFMC (équations 1 et 10, seuil de 7,5 % égal à un FFMC de 93,27) ; mouillage par la pluie, plafond de 250 %, terme au-delà de 150 % ; séchage, mouillage et repos entre les deux équilibres ; une heure de FWI2025 égale à deux heures du taux de 1977 ; interception de 0,5 mm par épisode, épisode continué après cinq heures sèches et terminé après six ; série horaire depuis le code 85 jusqu'à l'équilibre ; pluie appliquée avant le séchage de l'heure ; valeur manquante qui vide l'heure et les suivantes ; séries de longueurs différentes refusées ; écriture du code et de l'humidité dans la météo des foyers, calculés sur les valeurs écrites |
+| Couverture | `fuel_moisture.py` et `meteo.py` : 100 % des lignes |
+| Vitest | 161 tests réussis, dont 5 nouveaux : lecture des deux séries, absentes des fichiers plus anciens, valeur hors bornes écartée et comptée, série de mauvaise longueur ; humidité d'une heure ; fiche avec l'humidité, le code et la phrase au-dessus ou au-dessous de 7,5 % ; légende avec la ligne « plus pâle » et le nombre de foyers en végétation morte humide |
+| Couverture | `fireweather.ts` et `ui.ts` : 100 % des lignes |
+| Build et poids | `index` 20,5 ko gzip (19,9 avant), `map` 6,6 ko gzip, CSS 2,7 ko gzip ; MapLibre inchangé (297,4 ko gzip) ; tous sous leur budget |
+| `npm audit` | aucune vulnérabilité |
+| Playwright Chromium desktop et mobile | 159 scénarios réussis, 1 ignoré volontairement (navigation clavier sur mobile) ; dont 1 nouveau par profil (fichier sans humidité) et 4 scénarios de la propagation complétés |
+| Stabilité des 8 scénarios de la propagation | 80 exécutions sur 80 réussies (5 répétitions, deux profils) |
+
+Vérifications des équations dans l'espace de développement, sans publier les données qui ont servi (choix du mainteneur, 15 novembre 2026) :
+
+| Vérification | Résultat |
+|---|---|
+| Version journalière (taux 0,581, pluie au-delà de 0,5 mm, retour à l'échelle chaque jour), jeu d'essai du tableau 7 de NOR-X-424 (Van Wagner et Pickett 1985), 49 jours | 49 FFMC sur 49 identiques au dixième |
+| Version horaire avec les deux choix du code cffdrs-ng (seuil d'interception remis à la cinquième heure sèche, constante 14875/101), sorties horaires de son jeu d'essai PRF2007 (2 623 heures, du 10 mai au 27 août 2007, sans trou) | écart le plus grand 0,0000 : les équations réécrites depuis les rapports donnent les mêmes valeurs |
+| Version horaire retenue (six heures, comme le rapport GLC-X-42 ; constante 147,2, comme le rapport technique 33), même jeu | écart moyen 0,07 ; 91 heures sur 2 623 à plus de 0,05, jusqu'à 8,8 points : elles suivent les 3 heures de pluie de la saison venues après exactement cinq heures sèches, seul cas où les deux règles diffèrent ; avec la seule constante 147,2, écart le plus grand 0,05 |
+| Poids du code de départ après 168 heures, même météo, 103 fenêtres de 7 jours, départs à 0, 85 et 101 | aucune différence au dixième à la fin de chaque fenêtre |
+
+Choix du mainteneur, 15 novembre 2026 : formule FWI2025 réécrite à partir des rapports et comparée au code cffdrs-ng sans le copier ; calcul dans le pipeline ; phrase, code et humidité dans la fiche, couloir plus pâle au-dessus de 7,5 % ; fourchette inchangée ; interception de la pluie selon le rapport (six heures) ; jeux d'essai de NOR-X-424 et de cffdrs-ng comparés sans être publiés.
+
+Captures dans `docs/captures/lot-2/`, prises dans l'espace de développement par Playwright (Chromium), fond uni gris et police de substitution comme pour les parties 6c et 7, foyers marqués actifs, à 08:00, dernière heure de la frise : `propagation-humidite-carte-bureau.png` et `propagation-humidite-carte-mobile.png` (couloir plus pâle : le foyer 1 est à 30,7 % d'humidité après une nuit humide), `propagation-humidite-fiche-bureau.png` et `propagation-humidite-fiche-mobile.png`, `propagation-humidite-legende-bureau.png`.
+
+Poste Windows du mainteneur, 23 novembre 2026 vers 03:20 (heure de Paris), branche appliquée sur `main` par `git am` (arbre identique à celui de la branche) : pytest sous Python 3.12.10, 323 tests réussis, `fuel_moisture.py` et `meteo.py` à 100 % des lignes ; Vitest, 161 tests réussis, `fireweather.ts` et `ui.ts` à 100 % des lignes ; build sous les budgets (`index` 21,22 ko gzip et `map` 6,75 ko gzip selon Vite) ; Playwright sur les 5 profils (Chromium, Firefox et WebKit, desktop et mobile), 397 scénarios réussis, 3 ignorés volontairement (navigation clavier sur mobile et WebKit), aucun échec ; le nouveau scénario du fichier sans humidité réussi sur les 5 profils.
+
+| Non exécuté | Raison | Quand |
+|---|---|---|
+| Playwright avec le Chromium de la version 1.64.1, Firefox et WebKit dans l'espace de développement | non téléchargeables | poste Windows ; CI de la PR |
+| Affichage avec le vrai fond de carte | fonds de carte injoignables depuis l'espace de développement | après la fusion, sur le site quand un foyer est actif |
+| Calcul sur la météo réelle d'un foyer actif en ligne | dépend du prochain foyer actif | après la fusion, dans `meteo-foyers.json` du site |
+| Lighthouse, gitleaks, semgrep | exécutés par la CI | CI de la PR |
+| zizmor | aucun workflow modifié | CI de la PR |
 
 ## Résultats du lot 2, partie 7 : propagation estimée
 

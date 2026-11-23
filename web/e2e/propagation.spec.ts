@@ -76,14 +76,28 @@ test.describe("estimated spread", () => {
     await expect(part(page)).toContainText("Vent moyen prévu8 km/h, modèle AROME HD");
     await expect(part(page)).not.toContainText("À 0");
     await expect(part(page)).toContainText("sous-estime les feux d'herbe");
+    // Moisture of the dead fine fuels at the hour closest to the update, 01:00
+    // UTC (03:00 in Paris), after a night near 100 % humidity.
+    await expect(part(page)).toContainText(
+      "Humidité des combustibles fins morts à 03:0030,2 % (FFMC 73,7)",
+    );
+    await expect(part(page)).toContainText(
+      "Plus de 7,5 % d'humidité : selon Cruz et Alexander (2019), la règle du vent surestime alors nettement l'avancée",
+    );
     await expect(legend(page)).toContainText("Estimation seulement sur les heures de prévision");
     // Last hour of the forecast part: 06:00 UTC, 08:00 in Paris.
     await slider(page).focus();
     await page.keyboard.press("End");
     await expect(legend(page)).toContainText(
-      "3 foyers actifs, estimation à 08:00. La fiche d'un foyer en donne les limites.",
+      "3 foyers actifs, estimation à 08:00, tous en végétation morte humide. La fiche d'un foyer en donne les limites.",
+    );
+    await expect(legend(page)).toContainText(
+      "plus pâle : combustibles fins morts à plus de 7,5 % d'humidité, estimation probablement trop forte",
     );
     await expect(part(page)).toContainText("À 08:00avancée de");
+    await expect(part(page)).toContainText(
+      "Humidité des combustibles fins morts à 08:0030,7 % (FFMC 73,4)",
+    );
     // Back to the past: nothing again.
     await page.keyboard.press("Home");
     await expect(legend(page)).toContainText("Estimation seulement sur les heures de prévision");
@@ -97,7 +111,7 @@ test.describe("estimated spread", () => {
     await slider(page).focus();
     await page.keyboard.press("End");
     await expect(legend(page)).toContainText(
-      "3 foyers actifs, estimation à 08:43, la dernière heure estimée (6 heures après la mise à jour).",
+      "3 foyers actifs, estimation à 08:43, la dernière heure estimée (6 heures après la mise à jour), tous en végétation morte humide.",
     );
     await expect(part(page)).not.toContainText("À 08:43");
     await expect(page.locator("#attribution")).not.toContainText("Propagation estimée");
@@ -109,8 +123,33 @@ test.describe("estimated spread", () => {
     const hour = Date.UTC(2026, 9, 12, 3) / 1000;
     await page.goto(`/#propagation=1&instant=${String(hour)}`);
     await expect(layer(page)).toBeChecked();
-    await expect(legend(page)).toContainText("3 foyers actifs, estimation à 05:00.");
+    await expect(legend(page)).toContainText(
+      "3 foyers actifs, estimation à 05:00, tous en végétation morte humide.",
+    );
     expect(hour - NOW).toBeLessThan(6 * 3600);
+  });
+
+  test("says when the moisture of the dead fine fuels is unknown", async ({ page, data }) => {
+    activeFoyers(data);
+    // A weather file written before the moisture was computed.
+    const weather = JSON.parse(
+      readFileSync(join(FIXTURES, "vent", "meteo-foyers.json"), "utf8"),
+    ) as { fires: Record<string, unknown>[] };
+    for (const entry of weather.fires) {
+      delete entry["ffmc"];
+      delete entry["fine_fuel_moisture"];
+    }
+    data.override("meteo-foyers.json", JSON.stringify(weather));
+    await page.goto("/#propagation=1&foyer=1");
+    await slider(page).focus();
+    await page.keyboard.press("End");
+    await expect(legend(page)).toContainText(
+      "3 foyers actifs, estimation à 08:00. La fiche d'un foyer en donne les limites.",
+    );
+    await expect(part(page)).toContainText(
+      "Humidité des combustibles fins mortsinconnue à cette heure",
+    );
+    await expect(part(page)).not.toContainText("Plus de 7,5 %");
   });
 
   test("says why when the weather of the clusters is malformed", async ({ page, data }) => {
